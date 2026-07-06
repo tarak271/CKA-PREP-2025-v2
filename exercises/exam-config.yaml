@@ -1,0 +1,201 @@
+# CKA Practice Exam configuration
+# Duration: 2 hours (7200 seconds)
+# One mark per sub-task listed below.
+
+exam:
+  name: "CKA Practice Exam"
+  duration_seconds: 7200
+  state_dir: "${HOME}/.cka-exam"
+
+# Question 15 (Etcd-Fix) is last because its lab setup breaks the API server.
+questions:
+  - id: q01
+    dir: "Question-1 MariaDB-Persistent volume"
+    title: "MariaDB Persistent Volume Recovery"
+    tasks:
+      - id: pvc-created
+        description: "PVC mariadb exists in mariadb namespace (ReadWriteOnce, 250Mi)"
+      - id: deployment-uses-pvc
+        description: "Deployment manifest references PVC claimName mariadb"
+      - id: deployment-applied
+        description: "MariaDB deployment is applied to the cluster"
+      - id: deployment-stable
+        description: "MariaDB deployment is running and stable"
+
+  - id: q02
+    dir: "Question-2 ArgoCD"
+    title: "Install Argo CD with Helm (no CRDs)"
+    tasks:
+      - id: helm-repo
+        description: "Argo CD Helm repository added with name argocd"
+      - id: namespace
+        description: "Namespace argocd exists"
+      - id: manifest-file
+        description: "Generated manifest saved to /root/argo-helm.yaml"
+      - id: chart-version
+        description: "Manifest generated from Argo CD chart version 7.7.3"
+      - id: crds-disabled
+        description: "CRDs are not installed (crds.install=false)"
+
+  - id: q03
+    dir: "Question-3 Sidecar"
+    title: "Add Sidecar Container to WordPress"
+    tasks:
+      - id: sidecar-container
+        description: "Sidecar container named sidecar using busybox:stable image"
+      - id: sidecar-command
+        description: "Sidecar runs tail -f /var/log/wordpress.log"
+      - id: shared-volume
+        description: "Shared volume mounted at /var/log in both containers"
+
+  - id: q04
+    dir: "Question-4 Resource-Allocation"
+    title: "WordPress Resource Allocation"
+    tasks:
+      - id: replica-count
+        description: "WordPress deployment scaled to 3 replicas"
+      - id: equal-cpu
+        description: "All containers have equal CPU requests and limits"
+      - id: equal-memory
+        description: "All containers have equal memory requests and limits"
+      - id: init-main-match
+        description: "Init containers use the same resources as main containers"
+      - id: pods-running
+        description: "All WordPress pods are running"
+
+  - id: q05
+    dir: "Question-5 HPA"
+    title: "Horizontal Pod Autoscaler"
+    tasks:
+      - id: hpa-target
+        description: "HPA apache-server targets deployment apache-deployment"
+      - id: cpu-target
+        description: "HPA targets 50% CPU utilization per pod"
+      - id: replica-bounds
+        description: "HPA min replicas 1, max replicas 4"
+      - id: stabilization
+        description: "Downscale stabilization window is 30 seconds"
+
+  - id: q06
+    dir: "Question-6 CRDs"
+    title: "cert-manager CRDs and Documentation"
+    tasks:
+      - id: crd-list
+        description: "cert-manager CRD list saved to /root/resources.yaml"
+      - id: subject-docs
+        description: "Certificate spec.subject docs saved to /root/subject.yaml"
+
+  - id: q07
+    dir: "Question-7 PriorityClass"
+    title: "Priority Class"
+    tasks:
+      - id: priority-class
+        description: "PriorityClass high-priority created with value 999"
+      - id: deployment-patched
+        description: "Deployment busybox-logger uses high-priority class"
+
+  - id: q08
+    dir: "Question-8 CNI & Network Policy"
+    title: "Install CNI with Network Policy Support"
+    tasks:
+      - id: cni-installed
+        description: "CNI (Flannel or Calico) installed from manifest"
+      - id: cni-running
+        description: "CNI pods are running"
+      - id: pod-connectivity
+        description: "Pods can communicate with each other"
+
+  - id: q09
+    dir: "Question-9 Cri-Dockerd"
+    title: "Install and Configure cri-dockerd"
+    tasks:
+      - id: package-installed
+        description: "cri-dockerd Debian package installed"
+      - id: service-running
+        description: "cri-docker service enabled and running"
+      - id: sysctl-iptables
+        description: "net.bridge.bridge-nf-call-iptables set to 1"
+      - id: sysctl-ipv6-forward
+        description: "net.ipv6.conf.all.forwarding set to 1"
+      - id: sysctl-ip-forward
+        description: "net.ipv4.ip_forward set to 1"
+      - id: sysctl-conntrack
+        description: "net.netfilter.nf_conntrack_max set to 131072"
+
+  - id: q10
+    dir: "Question-10 Taints-Tolerations"
+    title: "Taints and Tolerations"
+    tasks:
+      - id: node-taint
+        description: "Node tainted PERMISSION=granted:NoSchedule"
+      - id: tolerating-pod
+        description: "Pod with correct toleration scheduled on tainted node"
+
+  - id: q11
+    dir: "Question-11 Gateway-API"
+    title: "Migrate Ingress to Gateway API"
+    tasks:
+      - id: gateway
+        description: "Gateway web-gateway with hostname gateway.web.k8s.local and TLS"
+      - id: httproute
+        description: "HTTPRoute web-route with routing to web-service"
+
+  - id: q12
+    dir: "Question-12 Ingress"
+    title: "Ingress and NodePort Service"
+    tasks:
+      - id: nodeport-service
+        description: "Service echo-service exposed as NodePort on port 8080"
+      - id: ingress
+        description: "Ingress echo routes example.org/echo to echo-service"
+
+  - id: q13
+    dir: "Question-13 Network-Policy"
+    title: "Least Permissive Network Policy"
+    tasks:
+      - id: policy-deployed
+        description: "Network policy deployed in backend namespace"
+      - id: least-permissive
+        description: "Correct least-permissive policy (policy-z) applied"
+
+  - id: q14
+    dir: "Question-14 Storage-Class"
+    title: "StorageClass Configuration"
+    tasks:
+      - id: storage-class
+        description: "StorageClass local-storage with rancher.io/local-path provisioner"
+      - id: default-patched
+        description: "local-storage patched to be default StorageClass"
+      - id: only-default
+        description: "local-storage is the only default StorageClass"
+
+  - id: q16
+    dir: "Question-16 NodePort"
+    title: "NodePort Service"
+    tasks:
+      - id: container-port
+        description: "Deployment exposes container port 80 (name=http, TCP)"
+      - id: nodeport-service
+        description: "Service nodeport-service created with NodePort 30080"
+      - id: service-type
+        description: "Service type is NodePort exposing port 80"
+
+  - id: q17
+    dir: "Question-17 TLS-Config"
+    title: "TLS 1.3 Configuration"
+    tasks:
+      - id: tls-config
+        description: "ConfigMap configured to support only TLSv1.3"
+      - id: hosts-entry
+        description: "/etc/hosts entry for ckaquestion.k8s.local"
+      - id: tls-verification
+        description: "TLSv1.2 rejected and TLSv1.3 accepted"
+
+  - id: q15
+    dir: "Question-15 Etcd-Fix"
+    title: "Fix kube-apiserver etcd Endpoint"
+    tasks:
+      - id: api-server-fixed
+        description: "kube-apiserver etcd endpoint fixed (port 2379)"
+      - id: cluster-healthy
+        description: "Cluster is healthy (kubectl get nodes succeeds)"

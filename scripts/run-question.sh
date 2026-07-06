@@ -32,3 +32,7 @@ echo
 if [[ -f "$SOLUTION" ]]; then
   echo "Hints: see $SOLUTION"
 fi
+
+echo
+echo "When done, validate your work:"
+echo "  exercises/validate.sh \"$QUESTION_DIR\""
