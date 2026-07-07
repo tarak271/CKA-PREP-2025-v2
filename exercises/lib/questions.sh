@@ -2,7 +2,10 @@
 # Map question IDs to validation check scripts.
 set -euo pipefail
 
-EXERCISES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${EXERCISES_DIR:-}" ]]; then
+  EXERCISES_DIR="$(cd "$_LIB_DIR/.." && pwd)"
+fi
 CHECKS_DIR="$EXERCISES_DIR/checks"
 
 declare -A QUESTION_CHECKS=(
