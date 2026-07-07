@@ -65,11 +65,20 @@ echo -e "${BOLD}Validating ${QID}...${NC}"
 echo
 
 reset_results
+
+# Sourced (not executed) so RESULTS are available for --record.
+# Check scripts must not enable errexit; exit code derived from FAIL count.
+CKA_VALIDATING=1
 set +e
-# Source (not execute) so RESULTS from common.sh are available for --record.
+set +u
 source "$CHECK_SCRIPT"
-exit_code=$?
+exit_code=0
+if [[ ${FAIL:-0} -gt 0 ]]; then
+  exit_code=1
+fi
 set -e
+set -u
+set -o pipefail
 
 if [[ -n "$RECORD_FILE" ]]; then
   mkdir -p "$(dirname "$RECORD_FILE")"

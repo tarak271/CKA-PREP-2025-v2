@@ -35,8 +35,11 @@ A continuous, exam-style test covering all 17 questions with a **2-hour timer** 
 ```bash
 cd CKA-PREP-2025-v2
 
-# Start the exam
+# Start the exam (live timer starts automatically)
 bash exercises/cka-exam.sh start
+
+# Optional: dedicated live timer in another terminal (updates every second)
+bash exercises/cka-exam.sh timer
 
 # After completing the current question, check your answer
 bash exercises/cka-exam.sh check
@@ -56,11 +59,14 @@ bash exercises/cka-exam.sh reset
 
 ### Exam workflow
 
-1. `start` — begins the 2-hour countdown and presents Question 1 with lab setup.
-2. Work through the tasks on your cluster using `kubectl` and other tools.
-3. `check` — validates each sub-task and awards 1 mark per passing check.
-4. `next` — advances to the next question (lab setup runs automatically).
-5. `finish` — shows your final score with a per-question breakdown.
+1. `start` — begins the 2-hour countdown, starts a live timer, and presents Question 1 with lab setup.
+2. The timer **pauses automatically** while lab setup scripts run (setup time is excluded).
+3. Work through the tasks on your cluster using `kubectl` and other tools.
+4. `check` — validates each sub-task and awards 1 mark per passing check.
+5. `next` — advances to the next question (lab setup runs automatically).
+6. `finish` — shows your final score with a per-question breakdown.
+
+For a dedicated full-screen timer in a second terminal: `bash exercises/cka-exam.sh timer`
 
 **Note:** Question 15 (Etcd-Fix) is presented last because its lab setup temporarily breaks the API server. All other questions should be attempted first.
 

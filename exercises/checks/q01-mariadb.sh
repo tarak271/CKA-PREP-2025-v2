@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -9,7 +8,8 @@ reset_results
 if kubectl get pvc mariadb -n mariadb &>/dev/null; then
   access=$(jsonpath pvc mariadb mariadb '{.spec.accessModes[0]}')
   storage=$(jsonpath pvc mariadb mariadb '{.spec.resources.requests.storage}')
-  if [[ "$access" == "ReadWriteOnce" ]] && [[ "$storage" == "250Mi" || "$storage" == "250M" ]]; then
+  storage_normalized="${storage// /}"
+  if [[ "$access" == "ReadWriteOnce" ]] && [[ "$storage_normalized" == "250Mi" || "$storage_normalized" == "250M" ]]; then
     pass_task "pvc-created" "PVC mariadb exists in mariadb namespace (ReadWriteOnce, 250Mi)"
   else
     fail_task "pvc-created" "PVC mariadb exists in mariadb namespace (ReadWriteOnce, 250Mi)" \
@@ -20,13 +20,27 @@ else
     "Run: kubectl get pvc -n mariadb"
 fi
 
-# Task 2: Deployment manifest references PVC
-manifest="${HOME}/mariadb-deploy.yaml"
-if [[ -f "$manifest" ]] && grep -q 'claimName: mariadb' "$manifest"; then
+# Task 2: Deployment manifest or live deployment references PVC
+manifest=""
+for candidate in "${HOME}/mariadb-deploy.yaml" "/root/mariadb-deploy.yaml"; do
+  if [[ -f "$candidate" ]]; then
+    manifest="$candidate"
+    break
+  fi
+done
+
+live_claim=$(kubectl get deployment mariadb -n mariadb -o jsonpath='{.spec.template.spec.volumes[?(@.persistentVolumeClaim)].persistentVolumeClaim.claimName}' 2>/dev/null || true)
+
+manifest_ok=false
+if [[ -n "$manifest" ]] && grep -qE 'claimName:[[:space:]]*"?mariadb"?[[:space:]]*$' "$manifest"; then
+  manifest_ok=true
+fi
+
+if $manifest_ok || [[ "$live_claim" == "mariadb" ]]; then
   pass_task "deployment-uses-pvc" "Deployment manifest references PVC claimName mariadb"
 else
   fail_task "deployment-uses-pvc" "Deployment manifest references PVC claimName mariadb" \
-    "Edit ~/mariadb-deploy.yaml and set claimName: mariadb"
+    "Edit ~/mariadb-deploy.yaml (or /root/mariadb-deploy.yaml) and set claimName: mariadb"
 fi
 
 # Task 3: Deployment applied
@@ -38,9 +52,13 @@ else
 fi
 
 # Task 4: Deployment stable
-if kubectl get deployment mariadb -n mariadb -o jsonpath='{.status.availableReplicas}' 2>/dev/null | grep -q '^1$'; then
+ready_replicas=$(kubectl get deployment mariadb -n mariadb -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+available_replicas=$(kubectl get deployment mariadb -n mariadb -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
+desired_replicas=$(kubectl get deployment mariadb -n mariadb -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+
+if [[ "$ready_replicas" == "$desired_replicas" && "$available_replicas" == "$desired_replicas" && "$ready_replicas" != "0" ]]; then
   pass_task "deployment-stable" "MariaDB deployment is running and stable"
-elif kubectl wait --for=condition=Available deployment/mariadb -n mariadb --timeout=5s &>/dev/null; then
+elif kubectl wait --for=condition=Available deployment/mariadb -n mariadb --timeout=10s &>/dev/null; then
   pass_task "deployment-stable" "MariaDB deployment is running and stable"
 else
   fail_task "deployment-stable" "MariaDB deployment is running and stable" \
@@ -48,4 +66,3 @@ else
 fi
 
 print_summary "q01"
-[[ $FAIL -eq 0 ]]

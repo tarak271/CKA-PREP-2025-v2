@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -61,4 +60,3 @@ else
 fi
 
 print_summary "q11"
-[[ $FAIL -eq 0 ]]
