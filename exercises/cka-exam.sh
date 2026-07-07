@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$EXERCISES_DIR/.." && pwd)"
 source "$EXERCISES_DIR/lib/common.sh"
 source "$EXERCISES_DIR/lib/questions.sh"
 source "$EXERCISES_DIR/lib/timer.sh"
+source "$EXERCISES_DIR/lib/cleanup.sh"
 
 EXAM_DURATION=7200  # 2 hours
 STATE_DIR="${HOME}/.cka-exam"
@@ -52,9 +53,12 @@ Usage: exercises/cka-exam.sh <command>
 Commands:
   start     Begin the 2-hour exam (runs lab setup for question 1)
   timer     Show live countdown in this terminal (updates every second)
+  pause     Pause the exam timer for a break
+  resume    Resume the exam timer after a break
   status    Show remaining time, current question, and score
   check     Validate the current question (1 mark per sub-task)
   next      Move to the next question (runs its lab setup)
+  prev      Go back to the previous question (re-runs its lab setup)
   skip      Skip to next question without checking
   finish    End exam early and show final score
   reset     Clear exam state and start fresh
@@ -66,11 +70,15 @@ Environment:
 During the exam:
   1. A live timer starts automatically and updates every second.
   2. Timer pauses while lab setup scripts run (setup time is excluded).
-  3. Read the question and complete the tasks on your cluster.
-  4. Run: exercises/cka-exam.sh check
-  5. When satisfied, run: exercises/cka-exam.sh next
+  3. Use 'pause' and 'resume' when you need a break (break time is excluded).
+  4. Read the question and complete the tasks on your cluster.
+  5. Run: exercises/cka-exam.sh check
+  6. When satisfied, run: exercises/cka-exam.sh next
+  7. Use: exercises/cka-exam.sh prev  to revisit the previous question
 
-For a dedicated timer display in another terminal:
+The live timer stays pinned to the top line so command output below remains readable.
+
+For a dedicated timer view in another terminal:
   bash exercises/cka-exam.sh timer
 
 Scoring: ${TOTAL_MARKS} marks total (1 mark per sub-task).
@@ -95,7 +103,10 @@ EXAM_FINISHED=${EXAM_FINISHED:-0}
 PAUSED_SECONDS=${PAUSED_SECONDS:-0}
 SETUP_IN_PROGRESS=${SETUP_IN_PROGRESS:-0}
 SETUP_PAUSE_START=${SETUP_PAUSE_START:-0}
+BREAK_IN_PROGRESS=${BREAK_IN_PROGRESS:-0}
+BREAK_PAUSE_START=${BREAK_PAUSE_START:-0}
 EXAM_DURATION=${EXAM_DURATION:-7200}
+TOTAL_QUESTIONS=${TOTAL_QUESTIONS:-17}
 EOF
 }
 
@@ -139,11 +150,12 @@ parse_question() {
 }
 
 show_timer() {
-  local remaining formatted
+  local remaining formatted pause_label
   remaining=$(remaining_seconds)
   formatted=$(format_time "$remaining")
-  if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
-    echo -e "${BOLD}Time remaining:${NC} ${formatted} ${YELLOW}(paused — lab setup)${NC}"
+  pause_label=$(timer_pause_label)
+  if [[ -n "$pause_label" ]]; then
+    echo -e "${BOLD}Time remaining:${NC} ${formatted} ${YELLOW}(${pause_label})${NC}"
   else
     echo -e "${BOLD}Time remaining:${NC} ${formatted}"
   fi
@@ -152,23 +164,38 @@ show_timer() {
   fi
 }
 
+ensure_exam_active() {
+  load_state
+  if [[ "${EXAM_ACTIVE:-0}" -ne 1 ]]; then
+    echo "No active exam. Run: exercises/cka-exam.sh start"
+    exit 1
+  fi
+}
+
+begin_command_output() {
+  timer_begin_content_area
+}
+
+end_command_output() {
+  export STATE_DIR
+  timer_refresh_bar
+}
+
 show_score_summary() {
-  local earned=0 possible=0
+  local earned=0
   if [[ -f "$SCORES_FILE" ]]; then
     while IFS=$'\t' read -r qid task_id status mark; do
-      possible=$((possible + 1))
       earned=$((earned + mark))
     done < "$SCORES_FILE"
   fi
-  echo -e "${BOLD}Score:${NC} ${earned}/${possible} marks"
-  if [[ $possible -gt 0 ]]; then
-    local pct=$((earned * 100 / possible))
-    echo -e "${BOLD}Percentage:${NC} ${pct}%"
-  fi
+  echo -e "${BOLD}Score:${NC} ${earned}/${TOTAL_MARKS} marks"
+  local pct=$((earned * 100 / TOTAL_MARKS))
+  echo -e "${BOLD}Percentage:${NC} ${pct}% (of ${TOTAL_MARKS} total exam marks)"
 }
 
 run_lab_setup() {
   local qdir="$1"
+  local qid="$2"
   local setup="$REPO_ROOT/$qdir/LabSetUp.bash"
   if [[ ! -f "$setup" ]]; then
     echo "Missing lab setup: $setup" >&2
@@ -178,6 +205,9 @@ run_lab_setup() {
   load_state
   timer_pause_for_setup
   save_state
+
+  begin_command_output
+  run_question_cleanup "$qid"
 
   chmod +x "$setup"
   echo -e "${CYAN}==> Running lab setup for ${qdir}${NC}"
@@ -192,12 +222,11 @@ run_lab_setup() {
   timer_resume_after_setup
   save_state
 
-  timer_newline
   echo -e "${GREEN}▶  Exam timer resumed${NC}"
-
   if [[ $rc -ne 0 ]]; then
     echo -e "${YELLOW}Lab setup exited with code $rc (you may still attempt the question)${NC}"
   fi
+  end_command_output
 }
 
 show_question() {
@@ -216,8 +245,9 @@ show_question() {
   fi
   echo
   echo -e "${YELLOW}When done, check your work:${NC}  exercises/cka-exam.sh check"
-  echo -e "${YELLOW}Move to next question:${NC}     exercises/cka-exam.sh next"
-  echo -e "${YELLOW}Live timer (other terminal):${NC} exercises/cka-exam.sh timer"
+  echo -e "${YELLOW}Next question:${NC}              exercises/cka-exam.sh next"
+  echo -e "${YELLOW}Previous question:${NC}          exercises/cka-exam.sh prev"
+  echo -e "${YELLOW}Dedicated timer view:${NC}       exercises/cka-exam.sh timer"
 }
 
 cmd_start() {
@@ -242,24 +272,81 @@ cmd_start() {
   PAUSED_SECONDS=0
   SETUP_IN_PROGRESS=0
   SETUP_PAUSE_START=0
+  BREAK_IN_PROGRESS=0
+  BREAK_PAUSE_START=0
   save_state
   : > "$SCORES_FILE"
 
   start_timer_daemon "$STATE_DIR" "$EXERCISES_DIR"
+  timer_begin_content_area
 
   parse_question 0
   echo -e "${GREEN}Exam started!${NC} You have $(format_time $EXAM_DURATION)."
   echo "Total questions: $TOTAL_QUESTIONS | Total marks: $TOTAL_MARKS"
-  echo -e "${CYAN}Live timer running — updates every second on stderr.${NC}"
+  echo -e "${CYAN}Live timer pinned to the top line — your commands print below it.${NC}"
   echo
 
-  run_lab_setup "$QDIR"
+  run_lab_setup "$QDIR" "$QID"
   show_question "$QDIR" "$QTITLE" 1
+  end_command_output
 }
 
 cmd_timer() {
   load_state
   run_foreground_timer "$STATE_DIR"
+}
+
+cmd_pause() {
+  load_state
+  if [[ "${EXAM_ACTIVE:-0}" -ne 1 ]]; then
+    echo "No active exam. Run: exercises/cka-exam.sh start"
+    exit 1
+  fi
+  if [[ "${EXAM_FINISHED:-0}" -eq 1 ]]; then
+    echo "Exam already finished."
+    exit 1
+  fi
+  if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
+    echo "Timer is already paused for lab setup."
+    exit 1
+  fi
+  if [[ "${BREAK_IN_PROGRESS:-0}" -eq 1 ]]; then
+    echo "Timer is already paused for a break."
+    show_timer
+    exit 0
+  fi
+
+  timer_pause_for_break
+  save_state
+  begin_command_output
+  echo -e "${YELLOW}⏸  Exam timer paused for break.${NC}"
+  show_timer
+  echo "Resume with: exercises/cka-exam.sh resume"
+  end_command_output
+}
+
+cmd_resume() {
+  load_state
+  if [[ "${EXAM_ACTIVE:-0}" -ne 1 ]]; then
+    echo "No active exam. Run: exercises/cka-exam.sh start"
+    exit 1
+  fi
+  if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
+    echo "Timer is paused for lab setup and will resume automatically when setup completes."
+    exit 1
+  fi
+  if [[ "${BREAK_IN_PROGRESS:-0}" -ne 1 ]]; then
+    echo "Timer is not paused. Use 'pause' to take a break."
+    show_timer
+    exit 0
+  fi
+
+  timer_resume_after_break
+  save_state
+  begin_command_output
+  echo -e "${GREEN}▶  Exam timer resumed.${NC}"
+  show_timer
+  end_command_output
 }
 
 cmd_status() {
@@ -269,7 +356,7 @@ cmd_status() {
     exit 1
   fi
 
-  timer_newline
+  begin_command_output
   banner
   parse_question "${CURRENT_INDEX:-0}"
   local qnum=$((CURRENT_INDEX + 1))
@@ -283,6 +370,7 @@ cmd_status() {
   if [[ "${EXAM_FINISHED:-0}" -eq 1 ]]; then
     echo "Exam finished."
   fi
+  end_command_output
 }
 
 cmd_check() {
@@ -292,19 +380,21 @@ cmd_check() {
     exit 1
   fi
   if time_expired; then
-    timer_newline
+    begin_command_output
     echo -e "${RED}Time has expired.${NC}"
+    end_command_output
     cmd_finish
     exit 0
   fi
 
-  timer_newline
+  begin_command_output
   parse_question "${CURRENT_INDEX:-0}"
   echo -e "${BOLD}Checking question ${QID}...${NC}"
   echo
   bash "$EXERCISES_DIR/validate.sh" "$QID" --record "$SCORES_FILE" || true
   echo
   show_score_summary
+  end_command_output
 }
 
 cmd_next() {
@@ -314,16 +404,18 @@ cmd_next() {
     exit 1
   fi
   if time_expired; then
-    timer_newline
+    begin_command_output
     echo -e "${RED}Time has expired.${NC}"
+    end_command_output
     cmd_finish
     exit 0
   fi
 
-  timer_newline
+  begin_command_output
   local next_index=$((CURRENT_INDEX + 1))
   if [[ $next_index -ge $TOTAL_QUESTIONS ]]; then
     echo "All questions completed!"
+    end_command_output
     cmd_finish
     return
   fi
@@ -334,13 +426,47 @@ cmd_next() {
   parse_question "$CURRENT_INDEX"
   local qnum=$((CURRENT_INDEX + 1))
 
-  run_lab_setup "$QDIR"
+  run_lab_setup "$QDIR" "$QID"
   show_question "$QDIR" "$QTITLE" "$qnum"
+  end_command_output
+}
+
+cmd_prev() {
+  load_state
+  if [[ "${EXAM_ACTIVE:-0}" -ne 1 ]]; then
+    echo "No active exam. Run: exercises/cka-exam.sh start"
+    exit 1
+  fi
+  if time_expired; then
+    echo -e "${RED}Time has expired.${NC}"
+    cmd_finish
+    exit 0
+  fi
+
+  if [[ "${CURRENT_INDEX:-0}" -le 0 ]]; then
+    begin_command_output
+    echo "Already at the first question."
+    end_command_output
+    exit 1
+  fi
+
+  CURRENT_INDEX=$((CURRENT_INDEX - 1))
+  save_state
+
+  parse_question "$CURRENT_INDEX"
+  local qnum=$((CURRENT_INDEX + 1))
+
+  begin_command_output
+  echo -e "${YELLOW}Returning to previous question — lab environment will be reset.${NC}"
+  run_lab_setup "$QDIR" "$QID"
+  show_question "$QDIR" "$QTITLE" "$qnum"
+  end_command_output
 }
 
 cmd_skip() {
-  timer_newline
+  begin_command_output
   echo -e "${YELLOW}Skipping check for current question.${NC}"
+  end_command_output
   cmd_next
 }
 
@@ -415,9 +541,12 @@ COMMAND="${1:-}"
 case "$COMMAND" in
   start)  cmd_start ;;
   timer)  cmd_timer ;;
+  pause)  cmd_pause ;;
+  resume) cmd_resume ;;
   status) cmd_status ;;
   check)  cmd_check ;;
   next)   cmd_next ;;
+  prev)   cmd_prev ;;
   skip)   cmd_skip ;;
   finish) cmd_finish ;;
   reset)  cmd_reset ;;

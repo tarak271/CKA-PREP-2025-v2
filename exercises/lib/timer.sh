@@ -1,16 +1,78 @@
 #!/bin/bash
 # Live exam timer helpers.
 
-timer_clear_line() {
-  if [[ -t 2 ]]; then
-    printf '\r\033[2K' >&2
+TIMER_BAR_LINE=1
+
+timer_tty() {
+  [[ -t 1 || -t 2 ]]
+}
+
+timer_format_bar() {
+  local formatted="$1"
+  local pause_label="$2"
+  local qinfo="${3:-}"
+
+  local bar="⏱  Time remaining: ${formatted}"
+  if [[ -n "$pause_label" ]]; then
+    bar+="  (${pause_label})"
+  fi
+  if [[ -n "$qinfo" ]]; then
+    bar+="  |  ${qinfo}"
+  fi
+  echo "$bar"
+}
+
+timer_init_display() {
+  if ! timer_tty; then
+    return 0
+  fi
+  printf '\033[1;0H\033[2K\033[7m CKA Practice Exam — live timer (top line) \033[0m\n' >&2
+  printf '\033[2;0H\033[2K──────────────────────────────────────────────────────────────\n' >&2
+  timer_begin_content_area
+}
+
+timer_begin_content_area() {
+  if timer_tty; then
+    printf '\033[3;0H'
   fi
 }
 
-timer_newline() {
-  if [[ -t 2 ]]; then
-    printf '\n' >&2
+timer_draw_bar() {
+  local text="$1"
+  if ! timer_tty; then
+    return 0
   fi
+  # Pin timer to line 1; leave cursor where the user is working.
+  printf '\033[s\033[%d;0H\033[2K%s\033[u' "$TIMER_BAR_LINE" "$text" >&2
+}
+
+timer_clear_bar() {
+  if ! timer_tty; then
+    return 0
+  fi
+  printf '\033[s\033[%d;0H\033[2K\033[u' "$TIMER_BAR_LINE" >&2
+}
+
+timer_clear_line() {
+  timer_clear_bar
+}
+
+timer_newline() {
+  : # No-op: pinned timer no longer shares the output line.
+}
+
+timer_pause_label() {
+  if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
+    echo "paused — lab setup in progress"
+  elif [[ "${BREAK_IN_PROGRESS:-0}" -eq 1 ]]; then
+    echo "paused — break"
+  else
+    echo ""
+  fi
+}
+
+timer_is_paused() {
+  [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 || "${BREAK_IN_PROGRESS:-0}" -eq 1 ]]
 }
 
 remaining_seconds() {
@@ -25,6 +87,8 @@ remaining_seconds() {
 
   if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 && -n "${SETUP_PAUSE_START:-}" && "$SETUP_PAUSE_START" -gt 0 ]]; then
     paused=$((paused + now - SETUP_PAUSE_START))
+  elif [[ "${BREAK_IN_PROGRESS:-0}" -eq 1 && -n "${BREAK_PAUSE_START:-}" && "$BREAK_PAUSE_START" -gt 0 ]]; then
+    paused=$((paused + now - BREAK_PAUSE_START))
   fi
 
   elapsed=$((now - EXAM_START - paused))
@@ -39,7 +103,34 @@ format_time() {
 }
 
 time_expired() {
-  [[ $(remaining_seconds) -eq 0 ]]
+  [[ $(remaining_seconds) -eq 0 ]] && ! timer_is_paused
+}
+
+timer_question_label() {
+  local idx="${CURRENT_INDEX:-0}"
+  local total="${TOTAL_QUESTIONS:-0}"
+  if [[ "$total" -gt 0 ]]; then
+    echo "Q$((idx + 1))/${total}"
+  fi
+}
+
+timer_refresh_bar() {
+  local state_dir="${STATE_DIR:-}"
+  [[ -z "$state_dir" || ! -f "${state_dir}/state.env" ]] && return 0
+
+  # shellcheck disable=SC1090
+  source "${state_dir}/state.env"
+
+  local remaining formatted pause_label qinfo bar
+  remaining=$(remaining_seconds)
+  formatted=$(format_time "$remaining")
+  pause_label=$(timer_pause_label)
+  qinfo=$(timer_question_label)
+  bar=$(timer_format_bar "$formatted" "$pause_label" "$qinfo")
+
+  echo "$remaining" > "${state_dir}/timer.remaining"
+  echo "$formatted" > "${state_dir}/timer.display"
+  timer_draw_bar "$bar"
 }
 
 timer_pause_for_setup() {
@@ -57,6 +148,21 @@ timer_resume_after_setup() {
   SETUP_PAUSE_START=0
 }
 
+timer_pause_for_break() {
+  BREAK_IN_PROGRESS=1
+  BREAK_PAUSE_START=$(date +%s)
+}
+
+timer_resume_after_break() {
+  local break_end
+  break_end=$(date +%s)
+  if [[ -n "${BREAK_PAUSE_START:-}" && "$BREAK_PAUSE_START" -gt 0 ]]; then
+    PAUSED_SECONDS=$(( ${PAUSED_SECONDS:-0} + break_end - BREAK_PAUSE_START ))
+  fi
+  BREAK_IN_PROGRESS=0
+  BREAK_PAUSE_START=0
+}
+
 stop_timer_daemon() {
   if [[ -f "${STATE_DIR}/timer.pid" ]]; then
     local pid
@@ -67,7 +173,7 @@ stop_timer_daemon() {
     fi
     rm -f "${STATE_DIR}/timer.pid"
   fi
-  timer_clear_line
+  timer_clear_bar
 }
 
 start_timer_daemon() {
@@ -75,39 +181,27 @@ start_timer_daemon() {
   local exercises_dir="$2"
 
   stop_timer_daemon
+  timer_init_display
 
   (
     # shellcheck disable=SC1090
     source "$exercises_dir/lib/timer.sh"
+    export STATE_DIR="$state_dir"
 
     while [[ -f "${state_dir}/state.env" ]]; do
       # shellcheck disable=SC1090
       source "${state_dir}/state.env"
+      export CURRENT_INDEX
 
       if [[ "${EXAM_ACTIVE:-0}" -ne 1 || "${EXAM_FINISHED:-0}" -eq 1 ]]; then
         break
       fi
 
-      local remaining formatted
-      remaining=$(remaining_seconds)
-      formatted=$(format_time "$remaining")
-
-      echo "$remaining" > "${state_dir}/timer.remaining"
-      echo "$formatted" > "${state_dir}/timer.display"
-
-      if [[ -t 2 ]]; then
-        if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
-          printf '\r\033[2K⏱  Time remaining: %s  (paused — lab setup in progress)' "$formatted" >&2
-        else
-          printf '\r\033[2K⏱  Time remaining: %s' "$formatted" >&2
-        fi
-      fi
-
+      timer_refresh_bar
       sleep 1
     done
 
-    timer_clear_line
-    timer_newline
+    timer_clear_bar
   ) &
 
   echo $! > "${state_dir}/timer.pid"
@@ -128,26 +222,19 @@ run_foreground_timer() {
     return 1
   fi
 
-  echo "Live exam timer (Ctrl+C to stop display; exam continues)"
-  trap 'timer_clear_line; timer_newline; exit 0' INT TERM
+  export STATE_DIR="$state_dir"
+  timer_init_display
+  echo "Live exam timer pinned to the top line (Ctrl+C to stop this view; exam continues)"
+  trap 'timer_clear_bar; exit 0' INT TERM
 
   while [[ -f "${state_dir}/state.env" ]]; do
     # shellcheck disable=SC1090
     source "${state_dir}/state.env"
+    export CURRENT_INDEX
     [[ "${EXAM_ACTIVE:-0}" -ne 1 || "${EXAM_FINISHED:-0}" -eq 1 ]] && break
-
-    local remaining formatted
-    remaining=$(remaining_seconds)
-    formatted=$(format_time "$remaining")
-
-    if [[ "${SETUP_IN_PROGRESS:-0}" -eq 1 ]]; then
-      printf '\r\033[2K⏱  Time remaining: %s  (paused — lab setup in progress)' "$formatted"
-    else
-      printf '\r\033[2K⏱  Time remaining: %s' "$formatted"
-    fi
-
+    timer_refresh_bar
     sleep 1
   done
 
-  printf '\r\033[2K\n'
+  timer_clear_bar
 }

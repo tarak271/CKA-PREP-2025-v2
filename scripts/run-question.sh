@@ -6,6 +6,13 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+EXERCISES_DIR="$REPO_ROOT/exercises"
+
+source "$EXERCISES_DIR/lib/questions.sh"
+source "$EXERCISES_DIR/lib/cleanup.sh"
+
 QUESTION_DIR="$*"
 if [[ ! -d "$QUESTION_DIR" ]]; then
   echo "Question directory '$QUESTION_DIR' not found" >&2
@@ -18,6 +25,14 @@ SOLUTION="$QUESTION_DIR/SolutionNotes.bash"
 
 [[ -f "$SETUP" ]] || { echo "Missing $SETUP" >&2; exit 1; }
 [[ -f "$QUESTION_TEXT" ]] || { echo "Missing $QUESTION_TEXT" >&2; exit 1; }
+
+QID=$(resolve_question_id "$QUESTION_DIR")
+if [[ -z "$QID" ]]; then
+  echo "Unknown question directory: $QUESTION_DIR" >&2
+  exit 1
+fi
+
+run_question_cleanup "$QID"
 
 chmod +x "$SETUP"
 

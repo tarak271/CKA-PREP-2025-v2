@@ -44,11 +44,20 @@ bash exercises/cka-exam.sh timer
 # After completing the current question, check your answer
 bash exercises/cka-exam.sh check
 
-# Move to the next question (runs lab setup automatically)
+# Move to the next question (cleanup + lab setup)
 bash exercises/cka-exam.sh next
+
+# Go back to the previous question (cleanup + lab setup)
+bash exercises/cka-exam.sh prev
 
 # View timer and running score
 bash exercises/cka-exam.sh status
+
+# Pause for a break (break time excluded from exam timer)
+bash exercises/cka-exam.sh pause
+
+# Resume after a break
+bash exercises/cka-exam.sh resume
 
 # End early and see final score
 bash exercises/cka-exam.sh finish
@@ -59,12 +68,16 @@ bash exercises/cka-exam.sh reset
 
 ### Exam workflow
 
-1. `start` — begins the 2-hour countdown, starts a live timer, and presents Question 1 with lab setup.
-2. The timer **pauses automatically** while lab setup scripts run (setup time is excluded).
-3. Work through the tasks on your cluster using `kubectl` and other tools.
-4. `check` — validates each sub-task and awards 1 mark per passing check.
-5. `next` — advances to the next question (lab setup runs automatically).
-6. `finish` — shows your final score with a per-question breakdown.
+1. `start` — cleans up Question 1 artifacts, runs lab setup, begins the 2-hour countdown, and starts the live timer.
+2. The timer **pauses automatically** while cleanup and lab setup scripts run (setup time is excluded).
+3. Use `pause` and `resume` for manual breaks (break time is also excluded).
+4. Work through the tasks on your cluster using `kubectl` and other tools.
+5. `check` — validates each sub-task and awards 1 mark per passing check. Overall percentage is calculated against all **51** exam marks.
+6. `next` — cleans up the previous question's cluster artifacts, then runs lab setup for the next question.
+7. `prev` — go back one question (re-runs cleanup and lab setup for that question).
+8. `finish` — shows your final score with a per-question breakdown.
+
+The live timer stays pinned to the **top line** of the terminal; all command output appears below it.
 
 For a dedicated full-screen timer in a second terminal: `bash exercises/cka-exam.sh timer`
 
