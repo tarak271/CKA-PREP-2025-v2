@@ -59,7 +59,7 @@ if [[ -z "${CKA_EXAM_LIB_LOADED:-}" ]]; then
   }
 
   jsonpath() {
-    kubectl get "$1" "$2" -n "${3:-}" -o "jsonpath={$4}" 2>/dev/null
+    kubectl get "$1" "$2" -n "${3:-}" -o "jsonpath=$4" 2>/dev/null
   }
 
   node_name() {
