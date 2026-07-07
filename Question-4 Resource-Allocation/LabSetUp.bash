@@ -1,7 +1,7 @@
 #!/bin/bash
 # setup-wordpress.sh
 # Create a WordPress deployment with 3 replicas and an init container
-
+kubectl delete deployment wordpress
 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
