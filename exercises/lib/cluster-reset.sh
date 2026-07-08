@@ -20,6 +20,32 @@ if [[ -z "${CKA_CLUSTER_VERIFY_LOADED:-}" ]]; then
     configmap/kube-root-ca.crt
   )
 
+  # Built-in PriorityClasses shipped with Kubernetes.
+  CLUSTER_SYSTEM_PRIORITY_CLASSES=(
+    system-cluster-critical
+    system-node-critical
+  )
+
+  priorityclass_is_system() {
+    local name="$1"
+    local pc
+    for pc in "${CLUSTER_SYSTEM_PRIORITY_CLASSES[@]}"; do
+      [[ "$name" == "$pc" ]] && return 0
+    done
+    return 1
+  }
+
+  list_user_priorityclasses() {
+    local name user_pcs=()
+    while IFS= read -r name; do
+      [[ -z "$name" ]] && continue
+      if ! priorityclass_is_system "$name"; then
+        user_pcs+=("$name")
+      fi
+    done < <(kubectl get priorityclass -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+    echo "${user_pcs[*]}"
+  }
+
   default_object_is_system() {
     local kind_name="$1"
     local obj
@@ -109,12 +135,12 @@ if [[ -z "${CKA_CLUSTER_VERIFY_LOADED:-}" ]]; then
     echo "  ✓ No PersistentVolumes"
 
     local user_pc
-    user_pc=$(kubectl get priorityclass -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+    user_pc=$(list_user_priorityclasses)
     if [[ -n "$user_pc" ]]; then
       echo "ERROR: User PriorityClasses found: $user_pc" >&2
       return 1
     fi
-    echo "  ✓ No user PriorityClasses"
+    echo "  ✓ No user PriorityClasses (system classes ignored)"
 
     if ! kubectl wait --namespace=kube-system --for=condition=Ready pods --all --timeout=120s &>/dev/null; then
       echo "WARNING: Not all kube-system pods are Ready yet; continuing anyway." >&2
