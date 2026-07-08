@@ -35,8 +35,11 @@ A continuous, exam-style test covering all 17 questions with a **2-hour timer** 
 ```bash
 cd CKA-PREP-2025-v2
 
-# Start the exam (live timer starts automatically)
+# Start the exam (resets cluster, then starts 2-hour timer)
 bash exercises/cka-exam.sh start
+
+# Reset cluster only (without starting exam)
+bash exercises/reset.sh
 
 # Optional: dedicated live timer in another terminal (updates every second)
 bash exercises/cka-exam.sh timer
@@ -68,7 +71,7 @@ bash exercises/cka-exam.sh reset
 
 ### Exam workflow
 
-1. `start` — cleans up Question 1 artifacts, runs lab setup, begins the 2-hour countdown, and starts the live timer.
+1. `start` — runs `exercises/reset.sh` to rebuild a clean cluster, verifies no user objects remain, then begins the timed exam.
 2. The timer **pauses automatically** while cleanup and lab setup scripts run (setup time is excluded).
 3. Use `pause` and `resume` for manual breaks (break time is also excluded).
 4. Work through the tasks on your cluster using `kubectl` and other tools.
@@ -125,3 +128,19 @@ CKA-PREP-2025-v2/
 ## Adding New Questions
 
 Copy an existing `Question-*` folder with `LabSetUp.bash`, `Questions.bash`, and `SolutionNotes.bash`. Add a matching validator in `exercises/checks/` and register it in `exercises/lib/questions.sh` and `exercises/exam-config.yaml`.
+
+## Killer.sh Practice Exam (Set-A / Set-B)
+
+A separate shell-based exam using Killer Shell question banks from `Killer.sh-test/Set-A.md` and `Set-B.md`:
+
+```bash
+# Start Set-A or Set-B (2-hour timed exam)
+bash Killer.sh-test/killer-exam.sh start --set A
+bash Killer.sh-test/killer-exam.sh start --set B
+
+bash Killer.sh-test/killer-exam.sh check
+bash Killer.sh-test/killer-exam.sh next
+bash Killer.sh-test/killer-exam.sh prev
+```
+
+See [Killer.sh-test/README.md](Killer.sh-test/README.md) for full documentation.

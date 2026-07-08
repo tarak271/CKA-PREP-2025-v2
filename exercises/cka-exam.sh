@@ -7,6 +7,7 @@ source "$EXERCISES_DIR/lib/common.sh"
 source "$EXERCISES_DIR/lib/questions.sh"
 source "$EXERCISES_DIR/lib/timer.sh"
 source "$EXERCISES_DIR/lib/cleanup.sh"
+source "$EXERCISES_DIR/lib/cluster-reset.sh"
 
 EXAM_DURATION=7200  # 2 hours
 STATE_DIR="${HOME}/.cka-exam"
@@ -68,7 +69,8 @@ Environment:
   Clone this repo and execute from the repository root.
 
 During the exam:
-  1. A live timer starts automatically and updates every second.
+  1. 'start' resets the cluster via exercises/reset.sh, then begins the timed exam.
+  2. A live timer starts automatically and updates every second.
   2. Timer pauses while lab setup scripts run (setup time is excluded).
   3. Use 'pause' and 'resume' when you need a break (break time is excluded).
   4. Read the question and complete the tasks on your cluster.
@@ -127,10 +129,19 @@ check_prerequisites() {
     errors=$((errors + 1))
   fi
 
-  if kubectl cluster-info &>/dev/null 2>&1 || kubectl get nodes &>/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${NC} Kubernetes cluster reachable"
+  if command -v kubeadm &>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} kubeadm found"
   else
-    echo -e "  ${YELLOW}⚠${NC} Kubernetes cluster not reachable (some questions may still work)"
+    echo -e "  ${RED}✗${NC} kubeadm not found (required for cluster reset at exam start)"
+    errors=$((errors + 1))
+  fi
+
+  echo -e "  ${YELLOW}ℹ${NC} Cluster reset at start requires sudo (kubeadm, iptables, systemctl)"
+
+  if kubectl cluster-info &>/dev/null 2>&1 || kubectl get nodes &>/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Kubernetes cluster reachable (will be reset at exam start)"
+  else
+    echo -e "  ${YELLOW}⚠${NC} Kubernetes cluster not reachable (reset will create a fresh cluster)"
   fi
 
   if command -v python3 &>/dev/null; then
@@ -179,6 +190,27 @@ begin_command_output() {
 end_command_output() {
   export STATE_DIR
   timer_refresh_bar
+}
+
+run_exam_cluster_reset() {
+  local reset_script="$EXERCISES_DIR/reset.sh"
+  echo -e "${CYAN}==> Resetting Kubernetes cluster to a clean state${NC}"
+  echo -e "${YELLOW}This runs exercises/reset.sh (kubeadm reset + fresh init).${NC}"
+  echo -e "${YELLOW}The exam timer has not started yet — reset time is excluded.${NC}"
+  echo
+
+  set +e
+  run_cluster_reset "$reset_script"
+  local rc=$?
+  set -e
+
+  if [[ $rc -ne 0 ]]; then
+    echo -e "${RED}Cluster reset failed. Fix the errors above and run: exercises/cka-exam.sh start${NC}" >&2
+    return 1
+  fi
+
+  echo
+  return 0
 }
 
 show_score_summary() {
@@ -264,6 +296,13 @@ cmd_start() {
   fi
 
   stop_timer_daemon
+
+  begin_command_output
+  if ! run_exam_cluster_reset; then
+    end_command_output
+    exit 1
+  fi
+  end_command_output
 
   EXAM_START=$(date +%s)
   CURRENT_INDEX=0
