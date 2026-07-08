@@ -13,6 +13,38 @@ if [[ -z "${CKA_CLUSTER_VERIFY_LOADED:-}" ]]; then
     kube-flannel
   )
 
+  # Built-in objects in default namespace (not user-defined).
+  CLUSTER_DEFAULT_SYSTEM_OBJECTS=(
+    service/kubernetes
+    endpoints/kubernetes
+    configmap/kube-root-ca.crt
+  )
+
+  default_object_is_system() {
+    local kind_name="$1"
+    local obj
+    for obj in "${CLUSTER_DEFAULT_SYSTEM_OBJECTS[@]}"; do
+      [[ "$kind_name" == "$obj" ]] && return 0
+    done
+    return 1
+  }
+
+  count_default_user_resources() {
+    local count=0
+    local line kind_name
+
+    while IFS= read -r line; do
+      [[ -z "$line" || "$line" == *"No resources found"* ]] && continue
+      kind_name=$(awk '{print $1}' <<< "$line")
+      if default_object_is_system "$kind_name"; then
+        continue
+      fi
+      count=$((count + 1))
+    done < <(kubectl get all,configmap -n default --no-headers 2>/dev/null)
+
+    echo "$count"
+  }
+
   namespace_is_allowed() {
     local ns="$1"
     local allowed
@@ -59,13 +91,13 @@ if [[ -z "${CKA_CLUSTER_VERIFY_LOADED:-}" ]]; then
     echo "  ✓ Only system namespaces present"
 
     local default_resources
-    default_resources=$(kubectl get all -n default --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    default_resources=$(count_default_user_resources)
     if [[ "$default_resources" != "0" ]]; then
       echo "ERROR: User resources still exist in default namespace." >&2
-      kubectl get all -n default 2>/dev/null || true
+      kubectl get all,configmap -n default 2>/dev/null || true
       return 1
     fi
-    echo "  ✓ default namespace is empty"
+    echo "  ✓ default namespace has no user resources (kubernetes service ignored)"
 
     local user_pv
     user_pv=$(kubectl get pv --no-headers 2>/dev/null | grep -v '^No resources' | wc -l | tr -d ' ')
