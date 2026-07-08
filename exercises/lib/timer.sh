@@ -1,5 +1,6 @@
 #!/bin/bash
 # Live exam timer helpers.
+# Timer updates use save/restore cursor on line 1 only — never reposition exam output.
 
 TIMER_BAR_LINE=1
 
@@ -26,15 +27,13 @@ timer_init_display() {
   if ! timer_tty; then
     return 0
   fi
-  printf '\033[1;0H\033[2K\033[7m CKA Practice Exam — live timer (top line) \033[0m\n' >&2
-  printf '\033[2;0H\033[2K──────────────────────────────────────────────────────────────\n' >&2
-  timer_begin_content_area
+  # Draw initial bar without moving the cursor used for normal command output.
+  timer_draw_bar "⏱  Exam timer starting..."
 }
 
 timer_begin_content_area() {
-  if timer_tty; then
-    printf '\033[3;0H'
-  fi
+  # Intentionally empty — do not jump cursor to a fixed row; that overwrites prior output.
+  :
 }
 
 timer_draw_bar() {
@@ -42,7 +41,7 @@ timer_draw_bar() {
   if ! timer_tty; then
     return 0
   fi
-  # Pin timer to line 1; leave cursor where the user is working.
+  # Save cursor, update line 1 on stderr, restore cursor so output continues below.
   printf '\033[s\033[%d;0H\033[2K%s\033[u' "$TIMER_BAR_LINE" "$text" >&2
 }
 
@@ -58,7 +57,7 @@ timer_clear_line() {
 }
 
 timer_newline() {
-  : # No-op: pinned timer no longer shares the output line.
+  :
 }
 
 timer_pause_label() {
@@ -223,18 +222,25 @@ run_foreground_timer() {
   fi
 
   export STATE_DIR="$state_dir"
-  timer_init_display
-  echo "Live exam timer pinned to the top line (Ctrl+C to stop this view; exam continues)"
-  trap 'timer_clear_bar; exit 0' INT TERM
+  echo "Live exam timer (Ctrl+C to stop this view; exam continues)"
+  trap 'printf "\n"; exit 0' INT TERM
 
   while [[ -f "${state_dir}/state.env" ]]; do
     # shellcheck disable=SC1090
     source "${state_dir}/state.env"
     export CURRENT_INDEX
     [[ "${EXAM_ACTIVE:-0}" -ne 1 || "${EXAM_FINISHED:-0}" -eq 1 ]] && break
-    timer_refresh_bar
+
+    local remaining formatted pause_label qinfo bar
+    remaining=$(remaining_seconds)
+    formatted=$(format_time "$remaining")
+    pause_label=$(timer_pause_label)
+    qinfo=$(timer_question_label)
+    bar=$(timer_format_bar "$formatted" "$pause_label" "$qinfo")
+
+    printf '\r\033[2K%s' "$bar"
     sleep 1
   done
 
-  timer_clear_bar
+  printf '\r\033[2K\n'
 }

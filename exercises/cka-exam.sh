@@ -78,7 +78,7 @@ During the exam:
   6. When satisfied, run: exercises/cka-exam.sh next
   7. Use: exercises/cka-exam.sh prev  to revisit the previous question
 
-The live timer stays pinned to the top line so command output below remains readable.
+The live timer stays pinned to the **top line** without moving your cursor — command output scrolls normally below.
 
 For a dedicated timer view in another terminal:
   bash exercises/cka-exam.sh timer
@@ -184,12 +184,11 @@ ensure_exam_active() {
 }
 
 begin_command_output() {
-  timer_begin_content_area
+  :
 }
 
 end_command_output() {
-  export STATE_DIR
-  timer_refresh_bar
+  :
 }
 
 run_exam_cluster_reset() {
@@ -279,7 +278,7 @@ show_question() {
   echo -e "${YELLOW}When done, check your work:${NC}  exercises/cka-exam.sh check"
   echo -e "${YELLOW}Next question:${NC}              exercises/cka-exam.sh next"
   echo -e "${YELLOW}Previous question:${NC}          exercises/cka-exam.sh prev"
-  echo -e "${YELLOW}Dedicated timer view:${NC}       exercises/cka-exam.sh timer"
+  echo -e "${YELLOW}Dedicated timer view:${NC}       exercises/cka-exam.sh timer  (2nd terminal)"
 }
 
 cmd_start() {
@@ -317,12 +316,13 @@ cmd_start() {
   : > "$SCORES_FILE"
 
   start_timer_daemon "$STATE_DIR" "$EXERCISES_DIR"
-  timer_begin_content_area
 
   parse_question 0
+  echo
   echo -e "${GREEN}Exam started!${NC} You have $(format_time $EXAM_DURATION)."
   echo "Total questions: $TOTAL_QUESTIONS | Total marks: $TOTAL_MARKS"
-  echo -e "${CYAN}Live timer pinned to the top line — your commands print below it.${NC}"
+  echo -e "${CYAN}Timer is pinned to the top line — output scrolls normally below.${NC}"
+  echo -e "${CYAN}Tip: run 'bash exercises/cka-exam.sh timer' in a second terminal for a dedicated timer view.${NC}"
   echo
 
   run_lab_setup "$QDIR" "$QID"
