@@ -4,6 +4,12 @@
 if [[ -z "${CKA_CLEANUP_LIB_LOADED:-}" ]]; then
   CKA_CLEANUP_LIB_LOADED=1
 
+  _cleanup_init() {
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # shellcheck source=/dev/null
+    [[ -z "${CKA_SAFE_OPS_LOADED:-}" ]] && source "$lib_dir/safe-ops.sh"
+  }
   cleanup_q01() {
     kubectl delete namespace mariadb --ignore-not-found --wait=false
     kubectl delete pv mariadb-pv --ignore-not-found --wait=false
@@ -53,12 +59,8 @@ if [[ -z "${CKA_CLEANUP_LIB_LOADED:-}" ]]; then
   }
 
   cleanup_q09() {
-    sudo systemctl stop cri-docker.service cri-docker &>/dev/null || true
-    sudo systemctl disable cri-docker.service cri-docker &>/dev/null || true
-    sudo dpkg -r cri-dockerd &>/dev/null || true
-    sudo rm -f /etc/sysctl.d/kube.conf
-    sudo sysctl --system &>/dev/null || true
-    rm -f "${HOME}/cri-dockerd.deb" /root/cri-dockerd.deb
+    _cleanup_init
+    cleanup_cri_docker
   }
 
   cleanup_q10() {
@@ -132,11 +134,12 @@ if [[ -z "${CKA_CLEANUP_LIB_LOADED:-}" ]]; then
     echo -e "\033[0;36m==> Cleaning up previous artifacts for ${qid}\033[0m"
 
     set +e
+    set +u
     "$cleanup_fn"
     local rc=$?
+    set -u
     set -e
 
-    # Allow resources to terminate before lab setup recreates them.
     sleep 2
 
     if [[ $rc -ne 0 ]]; then
