@@ -5,6 +5,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/cluster-reset.sh"
 
+# 1. Stop and disable cri-dockerd services
+sudo systemctl stop cri-docker.socket
+sudo systemctl stop cri-docker.service
+sudo systemctl disable cri-docker.socket cri-docker.service
+
+# 2. Purge the debian package and configuration files
+sudo apt purge cri-dockerd -y
+
+# 3. Clean up residual files and directories
+sudo rm -rf /var/run/cri-dockerd.sock
+sudo rm -rf /etc/systemd/system/cri-docker.service
+sudo rm -rf /etc/systemd/system/cri-docker.socket
+
+# 4. Refresh systemd daemon state
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+
+
 echo "=== [1/6] Tearing down existing Kubernetes environment ==="
 sudo kubeadm reset -f
 
