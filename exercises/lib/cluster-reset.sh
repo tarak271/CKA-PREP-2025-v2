@@ -24,7 +24,7 @@ if [[ -z "${CKA_CLUSTER_VERIFY_LOADED:-}" ]]; then
 
   verify_cluster_clean() {
     echo "=== Verifying cluster is healthy and free of user objects ==="
-
+    sleep 10
     if ! command -v kubectl &>/dev/null; then
       echo "ERROR: kubectl not found." >&2
       return 1
