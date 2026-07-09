@@ -30,7 +30,7 @@ bash exercises/validate.sh q05
 
 ## Timed CKA Practice Exam (2 Hours)
 
-A continuous, exam-style test covering all 17 questions with a **2-hour timer** and **automatic scoring** (1 mark per sub-task, 51 marks total).
+A continuous, exam-style test covering all 17 questions with a **2-hour timer** and **automatic scoring** (1 mark per sub-task, 53 marks total).
 
 ```bash
 cd CKA-PREP-2025-v2
@@ -75,7 +75,7 @@ bash exercises/cka-exam.sh reset
 2. The timer **pauses automatically** while cleanup and lab setup scripts run (setup time is excluded).
 3. Use `pause` and `resume` for manual breaks (break time is also excluded).
 4. Work through the tasks on your cluster using `kubectl` and other tools.
-5. `check` — validates each sub-task and awards 1 mark per passing check. Overall percentage is calculated against all **51** exam marks.
+5. `check` — validates each sub-task and awards 1 mark per passing check. Overall percentage is calculated against all **53** exam marks (unattempted questions count as 0).
 6. `next` — cleans up the previous question's cluster artifacts, then runs lab setup for the next question.
 7. `prev` — go back one question (re-runs cleanup and lab setup for that question).
 8. `finish` — shows your final score with a per-question breakdown.
@@ -108,7 +108,7 @@ For a dedicated full-screen timer in a second terminal: `bash exercises/cka-exam
 | 16 | Question-16 NodePort | Expose deployment via NodePort | 3 |
 | 17 | Question-17 TLS-Config | Restrict TLS to v1.3, verify with curl | 3 |
 
-**Total: 51 marks**
+**Total: 53 marks**
 
 ## Project Structure
 

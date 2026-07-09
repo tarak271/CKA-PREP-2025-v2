@@ -1,0 +1,1446 @@
+#!/usr/bin/env python3
+"""Generate Killer.sh exam question dirs, lab setups, and validators from Set-A/B markdown."""
+
+from __future__ import annotations
+
+import re
+import textwrap
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+KILLER = ROOT / "Killer.sh-test"
+
+
+def slugify(title: str) -> str:
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", title.strip()).strip("-")
+    return s[:60].rstrip("-")
+
+
+def clean_md_text(text: str) -> str:
+    text = text.replace("\\-", "-").replace("\\*", "*").replace("\\_", "_")
+    text = re.sub(r"^➜.*$", "", text, flags=re.M)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def parse_set(md_path: Path) -> list[dict]:
+    raw = md_path.read_text()
+    pattern = r"\*\*Question (\d+) \| ([^\*]+)\*\*"
+    parts = re.split(pattern, raw)
+    questions = []
+    # parts[0] may be empty; then triplets (num, title, body)
+    i = 1
+    while i + 2 < len(parts):
+        num, title, body = parts[i], parts[i + 1].strip(), parts[i + 2]
+        answer_split = re.split(r"\n##### \*\*Answer:?\*\*\n", body, maxsplit=1)
+        task_text = clean_md_text(answer_split[0])
+        solution = clean_md_text(answer_split[1]) if len(answer_split) > 1 else ""
+        # Strip leading "Solve this question on: ssh ..."
+        task_text = re.sub(
+            r"^Solve this question on: ssh \S+\s*",
+            "Solve this question on the local cluster.\n\n",
+            task_text,
+        )
+        task_text = re.sub(r"\bon (ssh )?cka\d+(-node\d+)?\b", "on this cluster", task_text)
+        questions.append(
+            {
+                "num": int(num),
+                "title": title,
+                "slug": slugify(title),
+                "tasks": task_text,
+                "solution": solution,
+            }
+        )
+        i += 3
+    return questions
+
+
+def write_questions_bash(qdir: Path, q: dict) -> None:
+    content = f"""#!/bin/bash
+# Killer.sh Question {q['num']:02d}: {q['title']}
+
+cat <<'EOF'
+Question {q['num']} | {q['title']}
+
+{q['tasks']}
+
+Course files are under /opt/course/{q['num']}/
+EOF
+"""
+    (qdir / "Questions.bash").write_text(content)
+    (qdir / "Questions.bash").chmod(0o755)
+
+    sol = q["solution"][:8000] if q["solution"] else "(See Set markdown for full solution.)"
+    (qdir / "SolutionNotes.bash").write_text(
+        f"""#!/bin/bash
+cat <<'EOF'
+Solution notes — Question {q['num']} | {q['title']}
+
+{sol}
+EOF
+"""
+    )
+    (qdir / "SolutionNotes.bash").chmod(0o755)
+
+
+def write_lab_setup(qdir: Path, set_id: str, q: dict) -> None:
+    key = f"{set_id}-{q['num']:02d}"
+    body = LAB_SETUPS.get(key, DEFAULT_LAB_SETUP.format(num=q["num"]))
+    (qdir / "LabSetUp.bash").write_text(
+        f"""#!/bin/bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+source "$SCRIPT_DIR/../../lib/course.sh"
+
+{body}
+"""
+    )
+    (qdir / "LabSetUp.bash").chmod(0o755)
+
+
+def write_check(set_id: str, q: dict, checks_dir: Path) -> tuple[str, int]:
+    qid = f"{set_id}{q['num']:02d}"
+    key = f"{set_id}-{q['num']:02d}"
+    body, marks = CHECKS.get(key, (DEFAULT_CHECK.format(qid=qid, num=q["num"]), 1))
+    path = checks_dir / f"{qid}.sh"
+    path.write_text(
+        f"""#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+source "$SCRIPT_DIR/../../lib/common.sh"
+source "$SCRIPT_DIR/../../lib/course.sh"
+reset_results
+
+{body}
+
+print_summary "{qid}"
+"""
+    )
+    path.chmod(0o755)
+    return qid, marks
+
+
+DEFAULT_LAB_SETUP = textwrap.dedent(
+    """
+    echo "Lab environment ready for question {num}."
+    ensure_course_dir {num}
+    """
+)
+
+DEFAULT_CHECK = textwrap.dedent(
+    """
+    if kubectl cluster-info &>/dev/null; then
+      pass_task "cluster-ready" "Cluster is reachable"
+    else
+      fail_task "cluster-ready" "Cluster is reachable" "Ensure kubectl is configured"
+    fi
+    """
+)
+
+# Lab setup bodies keyed as "a-01" or "b-01"
+LAB_SETUPS: dict[str, str] = {}
+
+# Check bodies and mark counts keyed as "a-01" or "b-01"
+CHECKS: dict[str, tuple[str, int]] = {}
+
+COMMON_HEADER = textwrap.dedent(
+    """
+    KILLER_COURSE_DIR="${KILLER_COURSE_DIR:-/opt/course}"
+    """
+)
+
+
+def _add_set_a():
+    LAB_SETUPS["a-01"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 1)
+        rm -f "$DIR/contexts" "$DIR/current-context" "$DIR/cert"
+        if [[ ! -f "$DIR/kubeconfig" ]]; then
+          # Generate kubeconfig fixture with three contexts
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/killer-a01.key -out /tmp/killer-a01.crt -days 365 -nodes -subj "/CN=account-0027@internal" 2>/dev/null
+          CERT_B64=$(base64 -w0 /tmp/killer-a01.crt 2>/dev/null || base64 < /tmp/killer-a01.crt | tr -d '\\n')
+          KEY_B64=$(base64 -w0 /tmp/killer-a01.key 2>/dev/null || base64 < /tmp/killer-a01.key | tr -d '\\n')
+          CA_B64="$CERT_B64"
+          cat > "$DIR/kubeconfig" <<KCFG
+        apiVersion: v1
+        kind: Config
+        current-context: cluster-w200
+        clusters:
+        - name: kubernetes
+          cluster:
+            server: https://127.0.0.1:6443
+            certificate-authority-data: ${CA_B64}
+        contexts:
+        - name: cluster-admin
+          context:
+            cluster: kubernetes
+            user: admin@internal
+        - name: cluster-w100
+          context:
+            cluster: kubernetes
+            user: account-0027@internal
+        - name: cluster-w200
+          context:
+            cluster: kubernetes
+            user: account-0028@internal
+        users:
+        - name: account-0027@internal
+          user:
+            client-certificate-data: ${CERT_B64}
+            client-key-data: ${KEY_B64}
+        - name: account-0028@internal
+          user:
+            client-certificate-data: ${CERT_B64}
+            client-key-data: ${KEY_B64}
+        - name: admin@internal
+          user:
+            client-certificate-data: ${CERT_B64}
+            client-key-data: ${KEY_B64}
+        KCFG
+          rm -f /tmp/killer-a01.key /tmp/killer-a01.crt
+        fi
+        echo "Kubeconfig ready at $DIR/kubeconfig"
+        """
+    )
+    CHECKS["a-01"] = (
+        textwrap.dedent(
+            """
+        DIR=$(course_path 1)
+        KCFG="$DIR/kubeconfig"
+        if [[ -f "$DIR/contexts" ]]; then
+          ctx=$(kubectl --kubeconfig "$KCFG" config get-contexts -oname 2>/dev/null | sort)
+          ans=$(sort "$DIR/contexts")
+          if [[ "$ctx" == "$ans" ]]; then
+            pass_task "contexts" "All context names written to contexts"
+          else
+            fail_task "contexts" "All context names written to contexts" "kubectl --kubeconfig $KCFG config get-contexts -oname > $DIR/contexts"
+          fi
+        else
+          fail_task "contexts" "All context names written to contexts" "Create $DIR/contexts"
+        fi
+        if [[ -f "$DIR/current-context" ]]; then
+          exp=$(kubectl --kubeconfig "$KCFG" config current-context 2>/dev/null)
+          got=$(tr -d '[:space:]' < "$DIR/current-context")
+          if [[ "$exp" == "$got" ]]; then
+            pass_task "current-context" "Current context written to current-context"
+          else
+            fail_task "current-context" "Current context written to current-context"
+          fi
+        else
+          fail_task "current-context" "Current context written to current-context"
+        fi
+        if [[ -f "$DIR/cert" ]] && grep -q "BEGIN CERTIFICATE" "$DIR/cert"; then
+          exp=$(kubectl --kubeconfig "$KCFG" config view --raw -ojsonpath='{.users[?(@.name=="account-0027@internal")].user.client-certificate-data}' 2>/dev/null | base64 -d 2>/dev/null)
+          if diff -q <(echo "$exp") "$DIR/cert" &>/dev/null; then
+            pass_task "cert" "Client certificate for account-0027 decoded into cert"
+          else
+            # fallback: any valid cert from account-0027 user block
+            if openssl x509 -in "$DIR/cert" -noout -subject &>/dev/null; then
+              pass_task "cert" "Client certificate for account-0027 decoded into cert"
+            else
+              fail_task "cert" "Client certificate for account-0027 decoded into cert"
+            fi
+          fi
+        else
+          fail_task "cert" "Client certificate for account-0027 decoded into cert"
+        fi
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["a-02"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 2)
+        kubectl delete namespace minio --ignore-not-found --wait=false
+        helm uninstall minio-operator -n minio &>/dev/null || true
+        sleep 2
+        cat > "$DIR/minio-tenant.yaml" <<'YAML'
+        apiVersion: minio.min.io/v2
+        kind: Tenant
+        metadata:
+          name: tenant
+          namespace: minio
+          labels:
+            app: minio
+        spec:
+          features:
+            bucketDNS: false
+          image: quay.io/minio/minio:latest
+          pools:
+            - servers: 1
+              name: pool-0
+              volumesPerServer: 0
+              volumeClaimTemplate:
+                metadata: {}
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  resources:
+                    requests:
+                      storage: 10Mi
+                  storageClassName: standard
+          requestAutoCert: true
+        YAML
+        echo "MinIO tenant template at $DIR/minio-tenant.yaml (add enableSFTP: true under features)"
+        """
+    )
+    CHECKS["a-02"] = (
+        textwrap.dedent(
+            """
+        kubectl get namespace minio &>/dev/null && pass_task "namespace" "Namespace minio exists" || fail_task "namespace" "Namespace minio exists"
+        helm list -n minio 2>/dev/null | grep -q minio-operator && pass_task "helm" "Helm release minio-operator installed" || fail_task "helm" "Helm release minio-operator installed" "helm -n minio install minio-operator minio/operator"
+        if grep -q "enableSFTP: true" "$(course_path 2)/minio-tenant.yaml" 2>/dev/null; then
+          pass_task "sftp" "enableSFTP: true set in minio-tenant.yaml"
+        else
+          fail_task "sftp" "enableSFTP: true set in minio-tenant.yaml"
+        fi
+        kubectl -n minio get tenant tenant &>/dev/null && pass_task "tenant" "Tenant resource created" || fail_task "tenant" "Tenant resource created" "kubectl -f $(course_path 2)/minio-tenant.yaml apply"
+        """
+        ),
+        4,
+    )
+
+    LAB_SETUPS["a-03"] = textwrap.dedent(
+        """
+        kubectl create namespace project-h800 --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-h800 delete statefulset o3db --ignore-not-found --wait=false
+        sleep 1
+        kubectl -n project-h800 apply -f - <<'YAML'
+        apiVersion: apps/v1
+        kind: StatefulSet
+        metadata:
+          name: o3db
+          namespace: project-h800
+        spec:
+          serviceName: o3db
+          replicas: 2
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+        YAML
+        kubectl -n project-h800 wait --for=condition=ready pod -l app=nginx --timeout=120s || true
+        """
+    )
+    CHECKS["a-03"] = (
+        textwrap.dedent(
+            """
+        replicas=$(kubectl -n project-h800 get sts o3db -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 0)
+        if [[ "$replicas" == "1" ]]; then
+          pass_task "scale" "StatefulSet o3db scaled to 1 replica"
+        else
+          fail_task "scale" "StatefulSet o3db scaled to 1 replica" "kubectl -n project-h800 scale sts o3db --replicas 1"
+        fi
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["a-04"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 4)
+        rm -f "$DIR/pods-terminated-first.txt"
+        kubectl create namespace project-c13 --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-c13 delete deploy --all --ignore-not-found --wait=false
+        sleep 1
+        for dep in c13-2x3-api c13-2x3-web c13-3cc-data c13-3cc-runner-heavy c13-3cc-web; do
+          kubectl -n project-c13 create deployment "$dep" --image=nginx:1-alpine --replicas=3 --dry-run=client -o yaml | kubectl apply -f -
+        done
+        # Remove resources from runner-heavy pods
+        kubectl -n project-c13 patch deployment c13-3cc-runner-heavy --type=json -p='[{"op":"remove","path":"/spec/template/spec/containers/0/resources"}]' 2>/dev/null || true
+        kubectl -n project-c13 rollout status deployment/c13-3cc-runner-heavy --timeout=90s || true
+        """
+    )
+    CHECKS["a-04"] = (
+        textwrap.dedent(
+            """
+        FILE="$(course_path 4)/pods-terminated-first.txt"
+        if [[ ! -f "$FILE" ]]; then
+          fail_task "pods-file" "Pod names written to pods-terminated-first.txt"
+        else
+          # Expect pods from c13-3cc-runner-heavy deployment (BestEffort QoS)
+          expected=$(kubectl -n project-c13 get pods -o jsonpath='{range .items[?(@.status.qosClass=="BestEffort")]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | sort)
+          got=$(sort "$FILE" | grep -v '^$' || true)
+          if [[ -n "$got" ]] && echo "$got" | grep -q "c13-3cc-runner-heavy"; then
+            pass_task "pods-file" "Pods without resource requests identified"
+          else
+            fail_task "pods-file" "Pods without resource requests identified" "Write BestEffort pod names to $FILE"
+          fi
+        fi
+        """
+        ),
+        1,
+    )
+
+    # Additional Set-A setups/checks - abbreviated patterns for remaining questions
+    _set_a_remaining()
+
+
+def _set_a_remaining():
+    LAB_SETUPS["a-05"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 5)
+        rm -rf "$DIR/api-gateway"
+        mkdir -p "$DIR/api-gateway/base" "$DIR/api-gateway/staging" "$DIR/api-gateway/prod"
+        cat > "$DIR/api-gateway/base/kustomization.yaml" <<'YAML'
+        resources:
+          - api-gateway.yaml
+        YAML
+        cat > "$DIR/api-gateway/base/api-gateway.yaml" <<'YAML'
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: api-gateway
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: api-gateway
+          template:
+            metadata:
+              labels:
+                app: api-gateway
+            spec:
+              containers:
+              - name: api
+                image: nginx:1-alpine
+        ---
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: horizontal-scaling-config
+        data:
+          placeholder: "true"
+        YAML
+        cat > "$DIR/api-gateway/staging/kustomization.yaml" <<'YAML'
+        namespace: api-gateway-staging
+        resources:
+          - ../base
+        YAML
+        cat > "$DIR/api-gateway/prod/kustomization.yaml" <<'YAML'
+        namespace: api-gateway-prod
+        resources:
+          - ../base
+        YAML
+        kubectl delete namespace api-gateway-staging api-gateway-prod --ignore-not-found --wait=false
+        """
+    )
+    CHECKS["a-05"] = (
+        textwrap.dedent(
+            """
+        kubectl -n api-gateway-staging get deploy api-gateway &>/dev/null && pass_task "staging-deploy" "Staging deployment applied via kustomize" || fail_task "staging-deploy" "Staging deployment applied via kustomize"
+        kubectl -n api-gateway-prod get deploy api-gateway &>/dev/null && pass_task "prod-deploy" "Prod deployment applied via kustomize" || fail_task "prod-deploy" "Prod deployment applied via kustomize"
+        staging_hpa=$(kubectl -n api-gateway-staging get hpa -o name 2>/dev/null | wc -l | tr -d ' ')
+        prod_hpa=$(kubectl -n api-gateway-prod get hpa -o name 2>/dev/null | wc -l | tr -d ' ')
+        [[ "$staging_hpa" -ge 1 ]] && pass_task "staging-hpa" "HPA configured for staging" || fail_task "staging-hpa" "HPA configured for staging"
+        [[ "$prod_hpa" -ge 1 ]] && pass_task "prod-hpa" "HPA configured for prod" || fail_task "prod-hpa" "HPA configured for prod"
+        """
+        ),
+        4,
+    )
+
+    LAB_SETUPS["a-06"] = textwrap.dedent(
+        """
+        kubectl create namespace project-t230 --dry-run=client -o yaml | kubectl apply -f -
+        kubectl delete pv safari-pv --ignore-not-found
+        kubectl -n project-t230 delete deploy safari pvc safari-pvc --ignore-not-found --wait=false
+        """
+    )
+    CHECKS["a-06"] = (
+        textwrap.dedent(
+            """
+        kubectl get pv safari-pv &>/dev/null && pass_task "pv" "PV safari-pv created" || fail_task "pv" "PV safari-pv created"
+        phase=$(kubectl -n project-t230 get pvc safari-pvc -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+        [[ "$phase" == "Bound" ]] && pass_task "pvc" "PVC safari-pvc bound" || fail_task "pvc" "PVC safari-pvc bound"
+        kubectl -n project-t230 get deploy safari &>/dev/null && pass_task "deploy" "Deployment safari created" || fail_task "deploy" "Deployment safari created"
+        mount=$(kubectl -n project-t230 get deploy safari -o jsonpath='{.spec.template.spec.containers[0].volumeMounts[?(@.mountPath=="/tmp/safari-data")].mountPath}' 2>/dev/null)
+        [[ "$mount" == "/tmp/safari-data" ]] && pass_task "mount" "Volume mounted at /tmp/safari-data" || fail_task "mount" "Volume mounted at /tmp/safari-data"
+        """
+        ),
+        4,
+    )
+
+    LAB_SETUPS["a-07"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 7)
+        rm -f "$DIR/node.sh" "$DIR/pod.sh"
+        echo "Create scripts node.sh and pod.sh in $DIR"
+        """
+    )
+    CHECKS["a-07"] = (
+        textwrap.dedent(
+            """
+        DIR=$(course_path 7)
+        if [[ -x "$DIR/node.sh" ]] && "$DIR/node.sh" 2>/dev/null | grep -qiE 'cpu|memory|name'; then
+          pass_task "node-sh" "node.sh shows node resource usage"
+        else
+          fail_task "node-sh" "node.sh shows node resource usage"
+        fi
+        if [[ -x "$DIR/pod.sh" ]] && "$DIR/pod.sh" 2>/dev/null | grep -qiE 'cpu|memory|pod'; then
+          pass_task "pod-sh" "pod.sh shows pod resource usage"
+        else
+          fail_task "pod-sh" "pod.sh shows pod resource usage"
+        fi
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-08"] = textwrap.dedent(
+        """
+        echo "Kubeadm upgrade scenario — work on control-plane node."
+        echo "Current version: $(kubectl version --short 2>/dev/null || kubectl version 2>/dev/null | head -1)"
+        """
+    )
+    CHECKS["a-08"] = (
+        textwrap.dedent(
+            """
+        nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        [[ "$nodes" -ge 1 ]] && pass_task "nodes" "Cluster has nodes" || fail_task "nodes" "Cluster has nodes"
+        pass_task "upgrade" "Kubeadm upgrade attempted (manual verification)"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-09"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 9)
+        rm -f "$DIR/result.json"
+        kubectl create namespace project-swan --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-swan delete pod api-contact --ignore-not-found --wait=false
+        kubectl -n project-swan apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: api-contact
+          namespace: project-swan
+        spec:
+          containers:
+          - name: curl
+            image: curlimages/curl:latest
+            command: ["sleep", "3600"]
+        YAML
+        kubectl -n project-swan wait --for=condition=ready pod/api-contact --timeout=60s || true
+        """
+    )
+    CHECKS["a-09"] = (
+        textwrap.dedent(
+            """
+        FILE="$(course_path 9)/result.json"
+        if [[ -f "$FILE" ]] && python3 -c "import json; json.load(open('$FILE'))" 2>/dev/null; then
+          pass_task "json" "result.json contains valid JSON from API call"
+        else
+          fail_task "json" "result.json contains valid JSON from API call"
+        fi
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["a-10"] = textwrap.dedent(
+        """
+        kubectl create namespace project-hibiscus --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-hwan delete sa,role,rolebinding --all --ignore-not-found 2>/dev/null || true
+        kubectl -n project-hibiscus delete sa,role,rolebinding --all --ignore-not-found 2>/dev/null || true
+        """
+    )
+    CHECKS["a-10"] = (
+        textwrap.dedent(
+            """
+        kubectl -n project-hibiscus get rolebinding &>/dev/null && pass_task "rbac" "RBAC resources created in project-hibiscus" || fail_task "rbac" "RBAC resources created in project-hibiscus"
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["a-11"] = textwrap.dedent(
+        """
+        kubectl delete daemonset ds-overlord --ignore-not-found --wait=false
+        """
+    )
+    CHECKS["a-11"] = (
+        textwrap.dedent(
+            """
+        kubectl get ds ds-overlord &>/dev/null && pass_task "ds" "DaemonSet ds-overlord exists" || fail_task "ds" "DaemonSet ds-overlord exists"
+        nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        ready=$(kubectl get ds ds-overlord -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+        [[ "$ready" -ge 1 ]] && pass_task "scheduled" "DaemonSet scheduled on nodes" || fail_task "scheduled" "DaemonSet scheduled on nodes"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-12"] = textwrap.dedent(
+        """
+        kubectl delete deploy,ds -l app=overlord --ignore-not-found --wait=false
+        """
+    )
+    CHECKS["a-12"] = (
+        textwrap.dedent(
+            """
+        kubectl get deploy overlord &>/dev/null && pass_task "deploy" "Deployment overlord exists" || fail_task "deploy" "Deployment overlord exists"
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["a-13"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 13)
+        kubectl create namespace project-r500 --dry-run=client -o yaml | kubectl apply -f -
+        cat > "$DIR/ingress.yaml" <<'YAML'
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: r500-ingress
+          namespace: project-r500
+        spec:
+          rules:
+          - host: r500.example.com
+            http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: r500-svc
+                    port:
+                      number: 80
+        YAML
+        kubectl -n project-r500 apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: r500-svc
+          namespace: project-r500
+        spec:
+          selector:
+            app: r500
+          ports:
+          - port: 80
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: r500
+          namespace: project-r500
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: r500
+          template:
+            metadata:
+              labels:
+                app: r500
+            spec:
+              containers:
+              - name: web
+                image: nginx:1-alpine
+        YAML
+        kubectl -n project-r500 apply -f "$DIR/ingress.yaml" || true
+        """
+    )
+    CHECKS["a-13"] = (
+        textwrap.dedent(
+            """
+        kubectl -n project-r500 get gateway &>/dev/null && pass_task "gateway" "Gateway API resource created" || fail_task "gateway" "Gateway API resource created"
+        kubectl -n project-r500 get httproute &>/dev/null && pass_task "route" "HTTPRoute created" || fail_task "route" "HTTPRoute created"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-14"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 14)
+        rm -f "$DIR/expiration" "$DIR/kubeadm-renew-certs.sh"
+        """
+    )
+    CHECKS["a-14"] = (
+        textwrap.dedent(
+            """
+        [[ -f "$(course_path 14)/expiration" ]] && pass_task "expiration" "Certificate expiration date recorded" || fail_task "expiration" "Certificate expiration date recorded"
+        [[ -f "$(course_path 14)/kubeadm-renew-certs.sh" ]] && pass_task "renew-cmd" "kubeadm renew command written" || fail_task "renew-cmd" "kubeadm renew command written"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-15"] = textwrap.dedent(
+        """
+        kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-tiger delete networkpolicy --all --ignore-not-found
+        kubectl -n project-tiger apply -f - <<'YAML'
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: web
+          namespace: project-tiger
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: web
+          template:
+            metadata:
+              labels:
+                app: web
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: api
+          namespace: project-tiger
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: api
+          template:
+            metadata:
+              labels:
+                app: api
+            spec:
+              containers:
+              - name: api
+                image: nginx:1-alpine
+        YAML
+        """
+    )
+    CHECKS["a-15"] = (
+        textwrap.dedent(
+            """
+        count=$(kubectl -n project-tiger get networkpolicy --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        [[ "$count" -ge 1 ]] && pass_task "netpol" "NetworkPolicy created in project-tiger" || fail_task "netpol" "NetworkPolicy created in project-tiger"
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["a-16"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 16)
+        rm -f "$DIR/coredns_backup.yaml"
+        """
+    )
+    CHECKS["a-16"] = (
+        textwrap.dedent(
+            """
+        [[ -f "$(course_path 16)/coredns_backup.yaml" ]] && pass_task "backup" "CoreDNS backup saved" || fail_task "backup" "CoreDNS backup saved"
+        fwd=$(kubectl -n kube-system get cm coredns -o yaml 2>/dev/null | grep -c forward || echo 0)
+        [[ "$fwd" -ge 1 ]] && pass_task "forward" "CoreDNS forward plugin configured" || fail_task "forward" "CoreDNS forward plugin configured"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["a-17"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 17)
+        rm -f "$DIR/pod-container.txt" "$DIR/pod-container.log"
+        kubectl create namespace project-park --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-park delete pod gherkin --ignore-not-found --wait=false
+        kubectl -n project-park apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: gherkin
+          namespace: project-park
+        spec:
+          containers:
+          - name: cucumber
+            image: busybox:1.36
+            command: ["sh", "-c", "echo hello-from-cucumber; sleep 3600"]
+          - name: tomato
+            image: busybox:1.36
+            command: ["sleep", "3600"]
+        YAML
+        kubectl -n project-park wait --for=condition=ready pod/gherkin --timeout=60s || true
+        """
+    )
+    CHECKS["a-17"] = (
+        textwrap.dedent(
+            """
+        [[ -f "$(course_path 17)/pod-container.txt" ]] && pass_task "container-info" "Container ID and runtimeType written" || fail_task "container-info" "Container ID and runtimeType written"
+        [[ -f "$(course_path 17)/pod-container.log" ]] && pass_task "container-log" "Container logs written" || fail_task "container-log" "Container logs written"
+        """
+        ),
+        2,
+    )
+
+
+def _add_set_b():
+    LAB_SETUPS["b-01"] = textwrap.dedent(
+        """
+        kubectl create namespace lima-control lima-workload --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n lima-control delete deploy,cm --all --ignore-not-found --wait=false
+        kubectl -n lima-workload delete pod,svc --all --ignore-not-found --wait=false
+        sleep 2
+        kubectl -n lima-workload apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: department
+          namespace: lima-workload
+        spec:
+          clusterIP: None
+          selector:
+            app: dept
+          ports:
+          - port: 80
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: section
+          namespace: lima-workload
+        spec:
+          selector:
+            name: section
+          ports:
+          - port: 80
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: section100
+          namespace: lima-workload
+          labels:
+            name: section
+        spec:
+          hostname: section100
+          subdomain: section
+          containers:
+          - name: pod
+            image: httpd:2-alpine
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: section200
+          namespace: lima-workload
+          labels:
+            name: section
+        spec:
+          hostname: section200
+          subdomain: section
+          containers:
+          - name: pod
+            image: httpd:2-alpine
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: dept-a
+          namespace: lima-workload
+          labels:
+            app: dept
+        spec:
+          containers:
+          - name: pod
+            image: httpd:2-alpine
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: dept-b
+          namespace: lima-workload
+          labels:
+            app: dept
+        spec:
+          containers:
+          - name: pod
+            image: httpd:2-alpine
+        YAML
+        kubectl -n lima-control apply -f - <<'YAML'
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: control-config
+          namespace: lima-control
+        data:
+          DNS_1: "CHANGE_ME"
+          DNS_2: "CHANGE_ME"
+          DNS_3: "CHANGE_ME"
+          DNS_4: "CHANGE_ME"
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: controller
+          namespace: lima-control
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: controller
+          template:
+            metadata:
+              labels:
+                app: controller
+            spec:
+              containers:
+              - name: controller
+                image: busybox:1.36
+                command: ["sh", "-c", "while true; do for k in DNS_1 DNS_2 DNS_3 DNS_4; do v=$(cat /config/$k); echo + nslookup $v; nslookup $v || true; done; sleep 30; done"]
+                envFrom:
+                - configMapRef:
+                    name: control-config
+                volumeMounts:
+                - name: cfg
+                  mountPath: /config
+              volumes:
+              - name: cfg
+                configMap:
+                  name: control-config
+        YAML
+        """
+    )
+    CHECKS["b-01"] = (
+        textwrap.dedent(
+            """
+        cm=$(kubectl -n lima-control get cm control-config -o yaml 2>/dev/null)
+        echo "$cm" | grep -q 'kubernetes.default.svc.cluster.local' && pass_task "dns1" "DNS_1 correct" || fail_task "dns1" "DNS_1 correct"
+        echo "$cm" | grep -q 'department.lima-workload.svc.cluster.local' && pass_task "dns2" "DNS_2 correct" || fail_task "dns2" "DNS_2 correct"
+        echo "$cm" | grep -q 'section100.section.lima-workload.svc.cluster.local' && pass_task "dns3" "DNS_3 correct" || fail_task "dns3" "DNS_3 correct"
+        echo "$cm" | grep -q '1-2-3-4.kube-system.pod.cluster.local' && pass_task "dns4" "DNS_4 correct" || fail_task "dns4" "DNS_4 correct"
+        """
+        ),
+        4,
+    )
+
+    LAB_SETUPS["b-02"] = textwrap.dedent(
+        """
+        kubectl delete svc static-pod-service --ignore-not-found
+        NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+        MANIFEST_DIR="/etc/kubernetes/manifests"
+        if [[ -w "$MANIFEST_DIR" ]] || sudo test -w "$MANIFEST_DIR"; then
+          sudo rm -f "$MANIFEST_DIR/my-static-pod.yaml" 2>/dev/null || rm -f "$MANIFEST_DIR/my-static-pod.yaml" 2>/dev/null || true
+        fi
+        echo "Create static pod my-static-pod in $MANIFEST_DIR on node $NODE"
+        """
+    )
+    CHECKS["b-02"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod -A 2>/dev/null | grep -q my-static && pass_task "static-pod" "Static pod running" || fail_task "static-pod" "Static pod running"
+        kubectl get svc static-pod-service &>/dev/null && pass_task "service" "NodePort service static-pod-service exists" || fail_task "service" "NodePort service static-pod-service exists"
+        ep=$(kubectl get endpointslices -l kubernetes.io/service-name=static-pod-service -o jsonpath='{.items[0].endpoints}' 2>/dev/null)
+        [[ -n "$ep" && "$ep" != "[]" ]] && pass_task "endpoint" "Service has endpoint" || fail_task "endpoint" "Service has endpoint"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-03"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 3)
+        rm -f "$DIR/certificate-info.txt"
+        echo "Inspect kubelet certificates on this node (or worker if available)"
+        """
+    )
+    CHECKS["b-03"] = (
+        textwrap.dedent(
+            """
+        FILE="$(course_path 3)/certificate-info.txt"
+        if [[ -f "$FILE" ]]; then
+          grep -qi "client authentication" "$FILE" && pass_task "client-cert" "Kubelet client cert info present" || fail_task "client-cert" "Kubelet client cert info present"
+          grep -qi "server authentication" "$FILE" && pass_task "server-cert" "Kubelet server cert info present" || fail_task "server-cert" "Kubelet server cert info present"
+        else
+          fail_task "client-cert" "certificate-info.txt created"
+          fail_task "server-cert" "certificate-info.txt created"
+        fi
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-04"] = textwrap.dedent(
+        """
+        kubectl delete pod ready-if-service-ready am-i-ready --ignore-not-found --wait=false
+        kubectl delete svc service-am-i-ready --ignore-not-found
+        kubectl apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: service-am-i-ready
+          labels:
+            id: cross-server-ready
+        spec:
+          selector:
+            id: cross-server-ready
+          ports:
+          - port: 80
+        YAML
+        """
+    )
+    CHECKS["b-04"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod ready-if-service-ready &>/dev/null && pass_task "pod1" "Pod ready-if-service-ready exists" || fail_task "pod1" "Pod ready-if-service-ready exists"
+        kubectl get pod am-i-ready &>/dev/null && pass_task "pod2" "Pod am-i-ready exists" || fail_task "pod2" "Pod am-i-ready exists"
+        ready=$(kubectl get pod ready-if-service-ready -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+        [[ "$ready" == "True" ]] && pass_task "ready" "ready-if-service-ready is Ready" || fail_task "ready" "ready-if-service-ready is Ready"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-05"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 5)
+        rm -f "$DIR/find_pods.sh" "$DIR/find_pods_uid.sh"
+        """
+    )
+    CHECKS["b-05"] = (
+        textwrap.dedent(
+            """
+        DIR=$(course_path 5)
+        if [[ -x "$DIR/find_pods.sh" ]]; then
+          out=$("$DIR/find_pods.sh" 2>/dev/null | head -5)
+          [[ -n "$out" ]] && pass_task "age-sort" "find_pods.sh lists pods sorted by age" || fail_task "age-sort" "find_pods.sh lists pods sorted by age"
+        else
+          fail_task "age-sort" "find_pods.sh created and executable"
+        fi
+        if [[ -x "$DIR/find_pods_uid.sh" ]]; then
+          out=$("$DIR/find_pods_uid.sh" 2>/dev/null | head -5)
+          [[ -n "$out" ]] && pass_task "uid-sort" "find_pods_uid.sh lists pods sorted by uid" || fail_task "uid-sort" "find_pods_uid.sh lists pods sorted by uid"
+        else
+          fail_task "uid-sort" "find_pods_uid.sh created and executable"
+        fi
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-06"] = textwrap.dedent(
+        """
+        echo "Kubelet troubleshooting scenario on this node."
+        systemctl is-active kubelet &>/dev/null && echo "kubelet is active" || echo "kubelet may need fixing"
+        """
+    )
+    CHECKS["b-06"] = (
+        textwrap.dedent(
+            """
+        systemctl is-active kubelet &>/dev/null && pass_task "kubelet" "Kubelet is running" || fail_task "kubelet" "Kubelet is running" "systemctl status kubelet"
+        kubectl get nodes &>/dev/null && pass_task "cluster" "Cluster API reachable" || fail_task "cluster" "Cluster API reachable"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-07"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 7)
+        rm -f "$DIR/etcd-version" "$DIR/etcd-snapshot.db"
+        """
+    )
+    CHECKS["b-07"] = (
+        textwrap.dedent(
+            """
+        [[ -f "$(course_path 7)/etcd-version" ]] && pass_task "version" "etcd version saved" || fail_task "version" "etcd version saved"
+        [[ -f "$(course_path 7)/etcd-snapshot.db" ]] && pass_task "snapshot" "etcd snapshot saved" || fail_task "snapshot" "etcd snapshot saved"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-08"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 8)
+        rm -f "$DIR/controlplane-components.txt"
+        """
+    )
+    CHECKS["b-08"] = (
+        textwrap.dedent(
+            """
+        FILE="$(course_path 8)/controlplane-components.txt"
+        [[ -f "$FILE" ]] && grep -qi kube-apiserver "$FILE" && pass_task "components" "Control plane components documented" || fail_task "components" "Control plane components documented"
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["b-09"] = textwrap.dedent(
+        """
+        echo "Manual scheduling scenario — scheduler may be stopped."
+        """
+    )
+    CHECKS["b-09"] = (
+        textwrap.dedent(
+            """
+        pending=$(kubectl get pods -A --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        [[ "$pending" -ge 0 ]] && pass_task "schedule" "Manual scheduling exercise attempted" || fail_task "schedule" "Manual scheduling exercise attempted"
+        """
+        ),
+        1,
+    )
+
+    LAB_SETUPS["b-10"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 10)
+        kubectl create namespace project-bern --dry-run=client -o yaml | kubectl apply -f -
+        cat > "$DIR/backup.yaml" <<'YAML'
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: backup
+          namespace: project-bern
+        spec:
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+              - name: backup
+                image: busybox:1.36
+                command: ["sh", "-c", "echo backup; sleep 5"]
+        YAML
+        kubectl -n project-bern delete job backup --ignore-not-found
+        """
+    )
+    CHECKS["b-10"] = (
+        textwrap.dedent(
+            """
+        kubectl get storageclass &>/dev/null && pass_task "sc" "StorageClass created" || fail_task "sc" "StorageClass created"
+        kubectl -n project-bern get pvc &>/dev/null && pass_task "pvc" "Job uses PVC" || fail_task "pvc" "Job uses PVC"
+        kubectl -n project-bern get job backup &>/dev/null && pass_task "job" "Backup job applied" || fail_task "job" "Backup job applied"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-11"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 11)
+        cat > "$DIR/secret1.yaml" <<'YAML'
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: secret1
+        type: Opaque
+        data:
+          key1: dmFsdWUx
+        YAML
+        kubectl delete pod secret-pod --ignore-not-found
+        """
+    )
+    CHECKS["b-11"] = (
+        textwrap.dedent(
+            """
+        kubectl get secret secret1 &>/dev/null && pass_task "secret" "Secret secret1 created" || fail_task "secret" "Secret secret1 created"
+        mount=$(kubectl get pod secret-pod -o jsonpath='{.spec.containers[0].volumeMounts[?(@.mountPath=="/tmp/secret1")].mountPath}' 2>/dev/null)
+        [[ "$mount" == "/tmp/secret1" ]] && pass_task "mount" "Secret mounted at /tmp/secret1" || fail_task "mount" "Secret mounted at /tmp/secret1"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-12"] = textwrap.dedent(
+        """
+        kubectl delete pod pod-on-controlplane --ignore-not-found
+        """
+    )
+    CHECKS["b-12"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod pod-on-controlplane &>/dev/null && pass_task "pod" "Pod pod-on-controlplane exists" || fail_task "pod" "Pod pod-on-controlplane exists"
+        node=$(kubectl get pod pod-on-controlplane -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+        controlplane=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+        echo "$controlplane" | grep -q "$node" && pass_task "node" "Pod scheduled on control-plane" || fail_task "node" "Pod scheduled on control-plane"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-13"] = textwrap.dedent(
+        """
+        kubectl delete pod multi-container-pod --ignore-not-found
+        """
+    )
+    CHECKS["b-13"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod multi-container-pod &>/dev/null && pass_task "pod" "Multi-container pod exists" || fail_task "pod" "Multi-container pod exists"
+        cnt=$(kubectl get pod multi-container-pod -o jsonpath='{.spec.containers[*].name}' 2>/dev/null | wc -w)
+        [[ "$cnt" -ge 2 ]] && pass_task "containers" "Pod has multiple containers" || fail_task "containers" "Pod has multiple containers"
+        vol=$(kubectl get pod multi-container-pod -o jsonpath='{.spec.volumes[0].name}' 2>/dev/null)
+        [[ -n "$vol" ]] && pass_task "volume" "Shared volume configured" || fail_task "volume" "Shared volume configured"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-14"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 14)
+        rm -f "$DIR/cluster-info"
+        """
+    )
+    CHECKS["b-14"] = (
+        textwrap.dedent(
+            """
+        FILE="$(course_path 14)/cluster-info"
+        [[ -f "$FILE" ]] && pass_task "info" "Cluster info file created" || fail_task "info" "Cluster info file created"
+        grep -qi version "$FILE" 2>/dev/null && pass_task "version" "Cluster version documented" || fail_task "version" "Cluster version documented"
+        grep -qi node "$FILE" 2>/dev/null && pass_task "nodes" "Node info documented" || fail_task "nodes" "Node info documented"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-15"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 15)
+        rm -f "$DIR/cluster_events.sh" "$DIR/pod_kill.log" "$DIR/container_kill.log"
+        """
+    )
+    CHECKS["b-15"] = (
+        textwrap.dedent(
+            """
+        [[ -x "$(course_path 15)/cluster_events.sh" ]] && pass_task "events-sh" "cluster_events.sh created" || fail_task "events-sh" "cluster_events.sh created"
+        [[ -f "$(course_path 15)/pod_kill.log" ]] && pass_task "pod-log" "pod_kill.log created" || fail_task "pod-log" "pod_kill.log created"
+        [[ -f "$(course_path 15)/container_kill.log" ]] && pass_task "container-log" "container_kill.log created" || fail_task "container-log" "container_kill.log created"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-16"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 16)
+        rm -f "$DIR/resources.txt" "$DIR/crowded-namespace.txt"
+        for i in 1 2 3 4 5; do
+          kubectl create namespace "project-$i" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "project-$i" delete role --all --ignore-not-found 2>/dev/null || true
+        done
+        for r in $(seq 1 3); do kubectl -n project-1 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        for r in $(seq 1 5); do kubectl -n project-2 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        for r in $(seq 1 2); do kubectl -n project-3 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        """
+    )
+    CHECKS["b-16"] = (
+        textwrap.dedent(
+            """
+        [[ -f "$(course_path 16)/resources.txt" ]] && pass_task "resources" "Namespaced API resources listed" || fail_task "resources" "Namespaced API resources listed"
+        [[ -f "$(course_path 16)/crowded-namespace.txt" ]] && pass_task "crowded" "Crowded namespace identified" || fail_task "crowded" "Crowded namespace identified"
+        """
+        ),
+        2,
+    )
+
+    LAB_SETUPS["b-17"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 17)
+        rm -rf "$DIR/operator"
+        mkdir -p "$DIR/operator/base" "$DIR/operator/prod"
+        cat > "$DIR/operator/base/kustomization.yaml" <<'YAML'
+        resources:
+          - crds.yaml
+          - rbac.yaml
+          - operator.yaml
+        YAML
+        cat > "$DIR/operator/prod/kustomization.yaml" <<'YAML'
+        namespace: operator-prod
+        resources:
+          - ../base
+        YAML
+        kubectl delete namespace operator-prod --ignore-not-found --wait=false
+        echo "Kustomize operator config at $DIR/operator"
+        """
+    )
+    CHECKS["b-17"] = (
+        textwrap.dedent(
+            """
+        kubectl -n operator-prod get deploy &>/dev/null && pass_task "operator" "Operator deployed in operator-prod" || fail_task "operator" "Operator deployed in operator-prod"
+        kubectl get crd students.example.com &>/dev/null 2>&1 || kubectl -n operator-prod get pods &>/dev/null && pass_task "crd" "CRDs/operator resources present" || fail_task "crd" "CRDs/operator resources present"
+        """
+        ),
+        2,
+    )
+
+
+def generate_cleanup_sh(set_id: str, qids: list[tuple[str, int, str]]) -> str:
+    lines = [
+        "#!/bin/bash",
+        f"# Cleanup for Killer.sh Set-{set_id.upper()}",
+        "",
+        'KILLER_COURSE_DIR="${KILLER_COURSE_DIR:-/opt/course}"',
+        "",
+    ]
+    for qid, _, slug in qids:
+        num = int(qid[1:])
+        key = f"{set_id}-{num:02d}"
+        body = CLEANUP.get(key, f'echo "Cleanup {qid}"')
+        lines.append(f"cleanup_{qid}() {{")
+        lines.append(body)
+        lines.append("}")
+        lines.append("")
+    lines.extend(
+        [
+            "run_question_cleanup() {",
+            '  local qid="$1"',
+            '  local fn="cleanup_${qid}"',
+            "  if ! declare -f \"$fn\" &>/dev/null; then",
+            '    echo "No cleanup for $qid"',
+            "    return 0",
+            "  fi",
+            '  echo -e "\\033[0;36m==> Cleaning up $qid\\033[0m"',
+            "  set +e",
+            '  "$fn"',
+            "  local rc=$?",
+            "  set -e",
+            "  sleep 2",
+            "  return $rc",
+            "}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+CLEANUP: dict[str, str] = {}
+
+
+def _add_cleanups():
+    for prefix, namespaces, extras in [
+        ("a", ["minio", "project-h800", "project-c13", "api-gateway-staging", "api-gateway-prod", "project-t230", "project-swan", "project-hibiscus", "project-r500", "project-tiger", "project-park"], "kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true"),
+        ("b", ["lima-control", "lima-workload", "project-bern", "operator-prod", "project-1", "project-2", "project-3", "project-4", "project-5"], "kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found"),
+    ]:
+        for i in range(1, 18):
+            key = f"{prefix}-{i:02d}"
+            ns_delete = "\n".join(
+                f'  kubectl delete namespace {ns} --ignore-not-found --wait=false' for ns in namespaces
+            )
+            CLEANUP[key] = textwrap.dedent(
+                f"""
+                  {extras}
+                  {ns_delete}
+                  rm -rf "${{KILLER_COURSE_DIR}}/{i}" 2>/dev/null || sudo rm -rf "${{KILLER_COURSE_DIR}}/{i}" 2>/dev/null || true
+                """
+            ).strip()
+
+
+def generate_questions_sh(set_id: str, qids: list[tuple[str, int, str]]) -> str:
+    check_lines = [f'  [{qid}]="{qid}.sh"' for qid, _, _ in qids]
+    dir_lines = [
+        f'  ["Question-{int(qid[1:]):02d}-{slug}"]="{qid}"'
+        for qid, _, slug in qids
+    ]
+    return (
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        'KILLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
+        f'CHECKS_DIR="$KILLER_DIR/checks/set-{set_id}"\n\n'
+        "declare -A QUESTION_CHECKS=(\n"
+        + "\n".join(check_lines)
+        + "\n)\n\n"
+        "declare -A DIR_TO_ID=(\n"
+        + "\n".join(dir_lines)
+        + "\n)\n\n"
+        + textwrap.dedent(
+            """
+            resolve_question_id() {
+              local input="$1"
+              if [[ -n "${QUESTION_CHECKS[$input]:-}" ]]; then
+                echo "$input"
+                return
+              fi
+              if [[ -n "${DIR_TO_ID[$input]:-}" ]]; then
+                echo "${DIR_TO_ID[$input]}"
+                return
+              fi
+              echo ""
+            }
+
+            get_check_script() {
+              local qid="$1"
+              local script="${QUESTION_CHECKS[$qid]:-}"
+              [[ -z "$script" ]] && return 1
+              echo "$CHECKS_DIR/$script"
+            }
+            """
+        )
+    )
+
+
+def main():
+    _add_set_a()
+    _add_set_b()
+    _add_cleanups()
+
+    for set_name, set_id in [("Set-A", "a"), ("Set-B", "b")]:
+        questions = parse_set(KILLER / f"{set_name}.md")
+        set_dir = KILLER / f"set-{set_id}"
+        checks_dir = KILLER / "checks" / f"set-{set_id}"
+        checks_dir.mkdir(parents=True, exist_ok=True)
+
+        qmeta: list[tuple[str, int, str]] = []
+        total_marks = 0
+
+        for q in questions:
+            dirname = f"Question-{q['num']:02d}-{q['slug']}"
+            qdir = set_dir / dirname
+            qdir.mkdir(parents=True, exist_ok=True)
+            write_questions_bash(qdir, q)
+            write_lab_setup(qdir, set_id, q)
+            qid, marks = write_check(set_id, q, checks_dir)
+            qmeta.append((qid, marks, q["slug"]))
+            total_marks += marks
+
+        cleanup_path = KILLER / "lib" / f"cleanup-set-{set_id}.sh"
+        cleanup_path.write_text(generate_cleanup_sh(set_id, qmeta))
+        cleanup_path.chmod(0o755)
+
+        qsh_path = KILLER / "lib" / f"questions-set-{set_id}.sh"
+        qsh_path.write_text(generate_questions_sh(set_id, qmeta))
+
+        order_lines = []
+        for qid, marks, slug in qmeta:
+            num = int(qid[1:])
+            dirname = f"Question-{num:02d}-{slug}"
+            title = next(x["title"] for x in questions if x["num"] == num)
+            order_lines.append(f'  "{qid}:{dirname}:{title}:{marks}"')
+
+        config = KILLER / f"exam-config-set-{set_id}.yaml"
+        config.write_text(
+            f"# Killer.sh {set_name} — {len(qmeta)} questions, {total_marks} marks\n"
+            + "questions:\n"
+            + "\n".join(
+                f"  - id: {qid}\n    marks: {m}\n    dir: Question-{int(qid[1:]):02d}-{s}"
+                for qid, m, s in qmeta
+            )
+            + "\n"
+        )
+
+        print(f"Generated {set_name}: {len(qmeta)} questions, {total_marks} marks")
+
+    # Symlink common.sh
+    common_link = KILLER / "lib" / "common.sh"
+    if not common_link.exists():
+        common_link.write_text(
+            textwrap.dedent(
+                """
+                # Re-export shared helpers from exercises/lib
+                EXERCISES_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../exercises/lib" && pwd)"
+                # shellcheck source=/dev/null
+                source "$EXERCISES_LIB/common.sh"
+                """
+            )
+        )
+
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()

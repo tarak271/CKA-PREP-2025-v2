@@ -1,0 +1,53 @@
+# Killer.sh Set-A — 17 questions, 35 marks
+questions:
+  - id: a01
+    marks: 3
+    dir: Question-01-Contexts
+  - id: a02
+    marks: 4
+    dir: Question-02-MinIO-Operator-CRD-Config-Helm-Install
+  - id: a03
+    marks: 1
+    dir: Question-03-Scale-down-StatefulSet
+  - id: a04
+    marks: 1
+    dir: Question-04-Find-Pods-first-to-be-terminated
+  - id: a05
+    marks: 4
+    dir: Question-05-Kustomize-configure-HPA-Autoscaler
+  - id: a06
+    marks: 4
+    dir: Question-06-Storage-PV-PVC-Pod-volume
+  - id: a07
+    marks: 2
+    dir: Question-07-Node-and-Pod-Resource-Usage
+  - id: a08
+    marks: 2
+    dir: Question-08-Update-Kubernetes-Version-and-join-cluster
+  - id: a09
+    marks: 1
+    dir: Question-09-Contact-K8s-Api-from-inside-Pod
+  - id: a10
+    marks: 1
+    dir: Question-10-RBAC-ServiceAccount-Role-RoleBinding
+  - id: a11
+    marks: 2
+    dir: Question-11-DaemonSet-on-all-Nodes
+  - id: a12
+    marks: 1
+    dir: Question-12-Deployment-on-all-Nodes
+  - id: a13
+    marks: 2
+    dir: Question-13-Gateway-Api-Ingress
+  - id: a14
+    marks: 2
+    dir: Question-14-Check-how-long-certificates-are-valid
+  - id: a15
+    marks: 1
+    dir: Question-15-NetworkPolicy
+  - id: a16
+    marks: 2
+    dir: Question-16-Update-CoreDNS-Configuration
+  - id: a17
+    marks: 2
+    dir: Question-17-Find-Container-of-Pod-and-check-info

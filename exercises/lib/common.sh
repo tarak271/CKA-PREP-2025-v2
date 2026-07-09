@@ -13,6 +13,7 @@ if [[ -z "${CKA_EXAM_LIB_LOADED:-}" ]]; then
   RED='\033[0;31m'
   YELLOW='\033[1;33m'
   CYAN='\033[0;36m'
+  DIM='\033[2m'
   BOLD='\033[1m'
   NC='\033[0m'
 
@@ -48,7 +49,8 @@ if [[ -z "${CKA_EXAM_LIB_LOADED:-}" ]]; then
   print_summary() {
     local question_id="${1:-}"
     echo
-    echo -e "${BOLD}Score for ${question_id}:${NC} ${PASS}/${TOTAL} (${PASS} mark(s))"
+    echo -e "${BOLD}Score for ${question_id}:${NC} ${PASS}/${TOTAL} (${PASS} mark(s) this question)"
+    echo -e "${DIM}Overall exam score: run exercises/cka-exam.sh status or finish${NC}"
     if [[ $FAIL -gt 0 ]]; then
       echo -e "${YELLOW}${FAIL} sub-task(s) still need attention.${NC}"
     fi

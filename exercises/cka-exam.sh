@@ -8,6 +8,7 @@ source "$EXERCISES_DIR/lib/questions.sh"
 source "$EXERCISES_DIR/lib/timer.sh"
 source "$EXERCISES_DIR/lib/cleanup.sh"
 source "$EXERCISES_DIR/lib/cluster-reset.sh"
+source "$EXERCISES_DIR/lib/scoring.sh"
 
 EXAM_DURATION=7200  # 2 hours
 STATE_DIR="${HOME}/.cka-exam"
@@ -36,7 +37,7 @@ QUESTION_ORDER=(
 )
 
 TOTAL_QUESTIONS=${#QUESTION_ORDER[@]}
-TOTAL_MARKS=51
+TOTAL_MARKS=$(compute_total_exam_marks)
 
 banner() {
   echo -e "${CYAN}${BOLD}"
@@ -210,18 +211,6 @@ run_exam_cluster_reset() {
 
   echo
   return 0
-}
-
-show_score_summary() {
-  local earned=0
-  if [[ -f "$SCORES_FILE" ]]; then
-    while IFS=$'\t' read -r qid task_id status mark; do
-      earned=$((earned + mark))
-    done < "$SCORES_FILE"
-  fi
-  echo -e "${BOLD}Score:${NC} ${earned}/${TOTAL_MARKS} marks"
-  local pct=$((earned * 100 / TOTAL_MARKS))
-  echo -e "${BOLD}Percentage:${NC} ${pct}% (of ${TOTAL_MARKS} total exam marks)"
 }
 
 run_lab_setup() {
@@ -404,7 +393,7 @@ cmd_status() {
   if [[ -f "$STATE_DIR/timer.display" ]]; then
     echo -e "${BOLD}Live display:${NC} $(cat "$STATE_DIR/timer.display")"
   fi
-  show_score_summary
+  show_score_summary "$SCORES_FILE"
   echo
   if [[ "${EXAM_FINISHED:-0}" -eq 1 ]]; then
     echo "Exam finished."
@@ -432,7 +421,7 @@ cmd_check() {
   echo
   bash "$EXERCISES_DIR/validate.sh" "$QID" --record "$SCORES_FILE" || true
   echo
-  show_score_summary
+  show_score_summary "$SCORES_FILE"
   end_command_output
 }
 
@@ -530,41 +519,10 @@ cmd_finish() {
   fi
 
   echo
-  show_score_summary
+  show_score_summary "$SCORES_FILE"
   echo
 
-  if [[ -f "$SCORES_FILE" ]]; then
-    echo -e "${BOLD}Breakdown by question:${NC}"
-    echo "────────────────────────────────────────"
-    local current_qid=""
-    local q_earned=0 q_total=0
-    while IFS=$'\t' read -r qid task_id status mark; do
-      if [[ -n "$current_qid" && "$qid" != "$current_qid" ]]; then
-        printf "  %-6s %2d/%2d\n" "$current_qid" "$q_earned" "$q_total"
-        q_earned=0
-        q_total=0
-      fi
-      current_qid="$qid"
-      q_total=$((q_total + 1))
-      q_earned=$((q_earned + mark))
-    done < "$SCORES_FILE"
-    if [[ -n "$current_qid" ]]; then
-      printf "  %-6s %2d/%2d\n" "$current_qid" "$q_earned" "$q_total"
-    fi
-    echo
-    echo -e "${BOLD}Unattempted questions:${NC}"
-    local attempted=""
-    attempted=$(cut -f1 "$SCORES_FILE" | sort -u)
-    for entry in "${QUESTION_ORDER[@]}"; do
-      IFS=':' read -r qid _ _ <<< "$entry"
-      if ! echo "$attempted" | grep -qx "$qid"; then
-        echo "  $qid (not checked)"
-      fi
-    done
-  else
-    echo "No questions were checked. Run 'check' after completing each task."
-  fi
-
+  show_final_breakdown "$SCORES_FILE"
   echo
   echo -e "${GREEN}Exam complete.${NC} State saved in $STATE_DIR"
 }

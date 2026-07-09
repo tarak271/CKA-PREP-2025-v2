@@ -1,0 +1,53 @@
+# Killer.sh Set-B — 17 questions, 40 marks
+questions:
+  - id: b01
+    marks: 4
+    dir: Question-01-DNS-FQDN-Headless-Service
+  - id: b02
+    marks: 3
+    dir: Question-02-Create-a-Static-Pod-and-Service
+  - id: b03
+    marks: 2
+    dir: Question-03-Kubelet-client-server-cert-info
+  - id: b04
+    marks: 3
+    dir: Question-04-Pod-Ready-if-Service-is-reachable
+  - id: b05
+    marks: 2
+    dir: Question-05-Kubectl-sorting
+  - id: b06
+    marks: 2
+    dir: Question-06-Fix-Kubelet
+  - id: b07
+    marks: 2
+    dir: Question-07-Etcd-Operations
+  - id: b08
+    marks: 1
+    dir: Question-08-Get-Controlplane-Information
+  - id: b09
+    marks: 1
+    dir: Question-09-Kill-Scheduler-Manual-Scheduling
+  - id: b10
+    marks: 3
+    dir: Question-10-PV-PVC-Dynamic-Provisioning
+  - id: b11
+    marks: 2
+    dir: Question-11-Create-Secret-and-mount-into-Pod
+  - id: b12
+    marks: 2
+    dir: Question-12-Schedule-Pod-on-Controlplane-Nodes
+  - id: b13
+    marks: 3
+    dir: Question-13-Multi-Containers-and-Pod-shared-Volume
+  - id: b14
+    marks: 3
+    dir: Question-14-Find-out-Cluster-Information
+  - id: b15
+    marks: 3
+    dir: Question-15-Cluster-Event-Logging
+  - id: b16
+    marks: 2
+    dir: Question-16-Namespaces-and-Api-Resources
+  - id: b17
+    marks: 2
+    dir: Question-17-Operator-CRDs-RBAC-Kustomize
