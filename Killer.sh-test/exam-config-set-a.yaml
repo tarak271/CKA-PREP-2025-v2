@@ -1,4 +1,4 @@
-# Killer.sh Set-A — 17 questions, 51 marks
+# Killer.sh Set-A — 17 questions, 52 marks
 questions:
   - id: a01
     marks: 3
@@ -10,7 +10,7 @@ questions:
     marks: 1
     dir: Question-03-Scale-down-StatefulSet
   - id: a04
-    marks: 1
+    marks: 2
     dir: Question-04-Find-Pods-first-to-be-terminated
   - id: a05
     marks: 4

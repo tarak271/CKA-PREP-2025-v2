@@ -348,34 +348,162 @@ def _add_set_a():
         rm -f "$DIR/pods-terminated-first.txt"
         kubectl create namespace project-c13 --dry-run=client -o yaml | kubectl apply -f -
         kubectl -n project-c13 delete deploy --all --ignore-not-found --wait=false
-        sleep 1
-        for dep in c13-2x3-api c13-2x3-web c13-3cc-data c13-3cc-runner-heavy c13-3cc-web; do
-          kubectl -n project-c13 create deployment "$dep" --image=nginx:1-alpine --replicas=3 --dry-run=client -o yaml | kubectl apply -f -
-        done
-        # Remove resources from runner-heavy pods
-        kubectl -n project-c13 patch deployment c13-3cc-runner-heavy --type=json -p='[{"op":"remove","path":"/spec/template/spec/containers/0/resources"}]' 2>/dev/null || true
-        kubectl -n project-c13 rollout status deployment/c13-3cc-runner-heavy --timeout=90s || true
+        sleep 2
+        kubectl -n project-c13 apply -f - <<'YAML'
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: c13-2x3-api
+          namespace: project-c13
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: c13-2x3-api
+          template:
+            metadata:
+              labels:
+                app: c13-2x3-api
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 20Mi
+                  limits:
+                    cpu: 50m
+                    memory: 20Mi
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: c13-2x3-web
+          namespace: project-c13
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: c13-2x3-web
+          template:
+            metadata:
+              labels:
+                app: c13-2x3-web
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 10Mi
+                  limits:
+                    cpu: 50m
+                    memory: 10Mi
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: c13-3cc-data
+          namespace: project-c13
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: c13-3cc-data
+          template:
+            metadata:
+              labels:
+                app: c13-3cc-data
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+                resources:
+                  requests:
+                    cpu: 30m
+                    memory: 10Mi
+                  limits:
+                    cpu: 30m
+                    memory: 10Mi
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: c13-3cc-web
+          namespace: project-c13
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: c13-3cc-web
+          template:
+            metadata:
+              labels:
+                app: c13-3cc-web
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 10Mi
+                  limits:
+                    cpu: 50m
+                    memory: 10Mi
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: c13-3cc-runner-heavy
+          namespace: project-c13
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: c13-3cc-runner-heavy
+          template:
+            metadata:
+              labels:
+                app: c13-3cc-runner-heavy
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1-alpine
+                resources: {}
+        YAML
+        kubectl -n project-c13 wait --for=condition=available deployment --all --timeout=120s || true
+        echo "Ready: project-c13 — c13-3cc-runner-heavy pods have no resource requests (BestEffort)"
         """
     )
     CHECKS["a-04"] = (
         textwrap.dedent(
             """
         FILE="$(course_path 4)/pods-terminated-first.txt"
+        besteffort=$(kubectl -n project-c13 get pods -o jsonpath='{range .items[?(@.status.qosClass=="BestEffort")]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | grep -c 'c13-3cc-runner-heavy' || echo 0)
+        burstable=$(kubectl -n project-c13 get pods -o jsonpath='{range .items[?(@.status.qosClass=="Burstable")]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "${besteffort:-0}" -ge 1 && "${burstable:-0}" -ge 1 ]]; then
+          pass_task "lab-state" "Runner-heavy pods are BestEffort; other pods have requests"
+        else
+          fail_task "lab-state" "Runner-heavy pods are BestEffort; other pods have requests" \
+            "Re-run lab setup: bash Killer.sh-test/set-a/Question-04-.../LabSetUp.bash"
+        fi
         if [[ ! -f "$FILE" ]]; then
           fail_task "pods-file" "Pod names written to pods-terminated-first.txt"
         else
-          # Expect pods from c13-3cc-runner-heavy deployment (BestEffort QoS)
-          expected=$(kubectl -n project-c13 get pods -o jsonpath='{range .items[?(@.status.qosClass=="BestEffort")]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | sort)
           got=$(sort "$FILE" | grep -v '^$' || true)
           if [[ -n "$got" ]] && echo "$got" | grep -q "c13-3cc-runner-heavy"; then
             pass_task "pods-file" "Pods without resource requests identified"
           else
-            fail_task "pods-file" "Pods without resource requests identified" "Write BestEffort pod names to $FILE"
+            fail_task "pods-file" "Pods without resource requests identified" \
+              "Write c13-3cc-runner-heavy pod names (BestEffort) to $FILE"
           fi
         fi
         """
         ),
-        1,
+        2,
     )
 
     # Additional Set-A setups/checks - abbreviated patterns for remaining questions
@@ -478,19 +606,38 @@ def _set_a_remaining():
     CHECKS["a-07"] = (
         textwrap.dedent(
             """
-        if ! kubectl top nodes &>/dev/null 2>&1; then
-          fail_task "metrics" "metrics-server available" "Run: ensure_metrics_server (re-run lab setup) or install metrics-server"
-        else
-          pass_task "metrics" "metrics-server available"
-        fi
         DIR=$(course_path 7)
-        if [[ -x "$DIR/node.sh" ]] && "$DIR/node.sh" 2>/dev/null | grep -qiE 'cpu|memory|name'; then
-          pass_task "node-sh" "node.sh shows node resource usage"
+
+        METRICS_OK=0
+        if kubectl top nodes &>/dev/null 2>&1; then
+          pass_task "metrics" "metrics-server available"
+          METRICS_OK=1
+        else
+          fail_task "metrics" "metrics-server available" "Run: ensure_metrics_server (re-run lab setup) or install metrics-server"
+        fi
+
+        # node.sh — verify correct kubectl top node command in the script
+        if [[ -f "$DIR/node.sh" ]] && grep -qE 'kubectl[[:space:]]+top[[:space:]]+node' "$DIR/node.sh"; then
+          if [[ $METRICS_OK -eq 1 ]]; then
+            pass_task "node-sh" "node.sh shows node resource usage"
+          elif bash "$DIR/node.sh" &>/dev/null; then
+            pass_task "node-sh" "node.sh shows node resource usage"
+          else
+            fail_task "node-sh" "node.sh shows node resource usage" "Fix metrics-server, then ensure node.sh contains: kubectl top node"
+          fi
         else
           fail_task "node-sh" "node.sh shows node resource usage" "echo 'kubectl top node' > $DIR/node.sh && chmod +x $DIR/node.sh"
         fi
-        if [[ -x "$DIR/pod.sh" ]] && "$DIR/pod.sh" 2>/dev/null | grep -qiE 'cpu|memory|pod'; then
-          pass_task "pod-sh" "pod.sh shows pod resource usage"
+
+        # pod.sh — verify kubectl top pod with per-container usage
+        if [[ -f "$DIR/pod.sh" ]] && grep -qE 'kubectl[[:space:]]+top[[:space:]]+pod' "$DIR/pod.sh" && grep -qE 'containers' "$DIR/pod.sh"; then
+          if [[ $METRICS_OK -eq 1 ]]; then
+            pass_task "pod-sh" "pod.sh shows pod resource usage"
+          elif bash "$DIR/pod.sh" &>/dev/null; then
+            pass_task "pod-sh" "pod.sh shows pod resource usage"
+          else
+            fail_task "pod-sh" "pod.sh shows pod resource usage" "Fix metrics-server, then ensure pod.sh contains: kubectl top pod --containers=true"
+          fi
         else
           fail_task "pod-sh" "pod.sh shows pod resource usage" "echo 'kubectl top pod --containers=true' > $DIR/pod.sh && chmod +x $DIR/pod.sh"
         fi
