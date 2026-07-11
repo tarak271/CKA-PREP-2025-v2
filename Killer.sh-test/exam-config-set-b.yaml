@@ -1,4 +1,4 @@
-# Killer.sh Set-B — 17 questions, 40 marks
+# Killer.sh Set-B — 17 questions, 47 marks
 questions:
   - id: b01
     marks: 4
@@ -16,7 +16,7 @@ questions:
     marks: 2
     dir: Question-05-Kubectl-sorting
   - id: b06
-    marks: 2
+    marks: 3
     dir: Question-06-Fix-Kubelet
   - id: b07
     marks: 2
@@ -25,16 +25,16 @@ questions:
     marks: 1
     dir: Question-08-Get-Controlplane-Information
   - id: b09
-    marks: 1
+    marks: 4
     dir: Question-09-Kill-Scheduler-Manual-Scheduling
   - id: b10
     marks: 3
     dir: Question-10-PV-PVC-Dynamic-Provisioning
   - id: b11
-    marks: 2
+    marks: 4
     dir: Question-11-Create-Secret-and-mount-into-Pod
   - id: b12
-    marks: 2
+    marks: 3
     dir: Question-12-Schedule-Pod-on-Controlplane-Nodes
   - id: b13
     marks: 3

@@ -5,8 +5,9 @@ source "$SCRIPT_DIR/../../lib/course.sh"
 reset_results
 
 
-kubectl -n project-r500 get gateway &>/dev/null && pass_task "gateway" "Gateway API resource created" || fail_task "gateway" "Gateway API resource created"
-kubectl -n project-r500 get httproute &>/dev/null && pass_task "route" "HTTPRoute created" || fail_task "route" "HTTPRoute created"
+kubectl -n project-r500 get gateway main &>/dev/null && pass_task "gateway" "Gateway main exists in project-r500" ||           fail_task "gateway" "Gateway main exists in project-r500"
+kubectl -n project-r500 get httproute traffic-director &>/dev/null && pass_task "route" "HTTPRoute traffic-director created" ||           fail_task "route" "HTTPRoute traffic-director created"
+kubectl -n project-r500 get svc web-desktop web-mobile &>/dev/null && pass_task "backends" "Backend services web-desktop and web-mobile exist" ||           fail_task "backends" "Backend services web-desktop and web-mobile exist"
 
 
 print_summary "a13"

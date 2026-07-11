@@ -6,7 +6,12 @@ reset_results
 
 
 [[ -f "$(course_path 16)/resources.txt" ]] && pass_task "resources" "Namespaced API resources listed" || fail_task "resources" "Namespaced API resources listed"
-[[ -f "$(course_path 16)/crowded-namespace.txt" ]] && pass_task "crowded" "Crowded namespace identified" || fail_task "crowded" "Crowded namespace identified"
+crowded="$(course_path 16)/crowded-namespace.txt"
+if [[ -f "$crowded" ]] && grep -qi 'project-miami' "$crowded" && grep -q '300' "$crowded"; then
+  pass_task "crowded" "project-miami with 300 roles identified"
+else
+  fail_task "crowded" "project-miami with 300 roles identified" "Expected: project-miami with 300 roles"
+fi
 
 
 print_summary "b16"

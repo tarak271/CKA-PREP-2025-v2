@@ -6,7 +6,7 @@ reset_results
 
 
 kubectl -n operator-prod get deploy &>/dev/null && pass_task "operator" "Operator deployed in operator-prod" || fail_task "operator" "Operator deployed in operator-prod"
-kubectl get crd students.example.com &>/dev/null 2>&1 || kubectl -n operator-prod get pods &>/dev/null && pass_task "crd" "CRDs/operator resources present" || fail_task "crd" "CRDs/operator resources present"
+kubectl get crd students.education.killer.sh &>/dev/null 2>&1 && pass_task "crd" "Student CRD present" ||           fail_task "crd" "Student CRD present" "kubectl get crd students.education.killer.sh"
 
 
 print_summary "b17"

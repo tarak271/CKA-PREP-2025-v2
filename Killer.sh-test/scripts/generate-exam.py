@@ -664,83 +664,162 @@ def _set_a_remaining():
 
     LAB_SETUPS["a-12"] = textwrap.dedent(
         """
-        kubectl delete deploy,ds -l app=overlord --ignore-not-found --wait=false
+        kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-tiger delete deployment deploy-important --ignore-not-found --wait=false
+        echo "Ready: namespace project-tiger (create Deployment deploy-important)"
         """
     )
     CHECKS["a-12"] = (
         textwrap.dedent(
             """
-        kubectl get deploy overlord &>/dev/null && pass_task "deploy" "Deployment overlord exists" || fail_task "deploy" "Deployment overlord exists"
+        kubectl -n project-tiger get deployment deploy-important &>/dev/null && \
+          pass_task "deploy" "Deployment deploy-important exists in project-tiger" || \
+          fail_task "deploy" "Deployment deploy-important exists in project-tiger"
+        replicas=$(kubectl -n project-tiger get deployment deploy-important -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 0)
+        [[ "$replicas" == "3" ]] && pass_task "replicas" "Deployment has 3 replicas" || \
+          fail_task "replicas" "Deployment has 3 replicas"
+        label=$(kubectl -n project-tiger get deployment deploy-important -o jsonpath='{.spec.template.metadata.labels.id}' 2>/dev/null)
+        [[ "$label" == "very-important" ]] && pass_task "label" "Pods labeled id=very-important" || \
+          fail_task "label" "Pods labeled id=very-important"
+        cnt=$(kubectl -n project-tiger get deployment deploy-important -o jsonpath='{.spec.template.spec.containers[*].name}' 2>/dev/null | wc -w)
+        [[ "$cnt" -ge 2 ]] && pass_task "containers" "Deployment has container1 and container2" || \
+          fail_task "containers" "Deployment has container1 and container2"
         """
         ),
-        1,
+        4,
     )
 
     LAB_SETUPS["a-13"] = textwrap.dedent(
         """
         DIR=$(ensure_course_dir 13)
         kubectl create namespace project-r500 --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-r500 delete httproute traffic-director ingress traffic-director --ignore-not-found --wait=false
+
         cat > "$DIR/ingress.yaml" <<'YAML'
         apiVersion: networking.k8s.io/v1
         kind: Ingress
         metadata:
-          name: r500-ingress
+          name: traffic-director
           namespace: project-r500
         spec:
+          ingressClassName: nginx
           rules:
-          - host: r500.example.com
+          - host: r500.gateway
             http:
               paths:
-              - path: /
+              - path: /desktop
                 pathType: Prefix
                 backend:
                   service:
-                    name: r500-svc
+                    name: web-desktop
+                    port:
+                      number: 80
+              - path: /mobile
+                pathType: Prefix
+                backend:
+                  service:
+                    name: web-mobile
                     port:
                       number: 80
         YAML
+
         kubectl -n project-r500 apply -f - <<'YAML'
         apiVersion: v1
         kind: Service
         metadata:
-          name: r500-svc
+          name: web-desktop
           namespace: project-r500
         spec:
           selector:
-            app: r500
+            app: web-desktop
+          ports:
+          - port: 80
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: web-mobile
+          namespace: project-r500
+        spec:
+          selector:
+            app: web-mobile
           ports:
           - port: 80
         ---
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: r500
+          name: web-desktop
           namespace: project-r500
         spec:
           replicas: 1
           selector:
             matchLabels:
-              app: r500
+              app: web-desktop
           template:
             metadata:
               labels:
-                app: r500
+                app: web-desktop
+            spec:
+              containers:
+              - name: web
+                image: nginx:1-alpine
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: web-mobile
+          namespace: project-r500
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: web-mobile
+          template:
+            metadata:
+              labels:
+                app: web-mobile
             spec:
               containers:
               - name: web
                 image: nginx:1-alpine
         YAML
         kubectl -n project-r500 apply -f "$DIR/ingress.yaml" || true
+
+        if kubectl get crd gateways.gateway.networking.k8s.io &>/dev/null; then
+          kubectl -n project-r500 apply -f - <<'YAML' || true
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: Gateway
+        metadata:
+          name: main
+          namespace: project-r500
+        spec:
+          gatewayClassName: nginx
+          listeners:
+          - name: http
+            port: 80
+            protocol: HTTP
+            allowedRoutes:
+              namespaces:
+                from: Same
+        YAML
+        else
+          echo "Note: Gateway API CRDs not installed — install a Gateway controller for full Q13"
+        fi
         """
     )
     CHECKS["a-13"] = (
         textwrap.dedent(
             """
-        kubectl -n project-r500 get gateway &>/dev/null && pass_task "gateway" "Gateway API resource created" || fail_task "gateway" "Gateway API resource created"
-        kubectl -n project-r500 get httproute &>/dev/null && pass_task "route" "HTTPRoute created" || fail_task "route" "HTTPRoute created"
+        kubectl -n project-r500 get gateway main &>/dev/null && pass_task "gateway" "Gateway main exists in project-r500" || \
+          fail_task "gateway" "Gateway main exists in project-r500"
+        kubectl -n project-r500 get httproute traffic-director &>/dev/null && pass_task "route" "HTTPRoute traffic-director created" || \
+          fail_task "route" "HTTPRoute traffic-director created"
+        kubectl -n project-r500 get svc web-desktop web-mobile &>/dev/null && pass_task "backends" "Backend services web-desktop and web-mobile exist" || \
+          fail_task "backends" "Backend services web-desktop and web-mobile exist"
         """
         ),
-        2,
+        3,
     )
 
     LAB_SETUPS["a-14"] = textwrap.dedent(
@@ -761,57 +840,77 @@ def _set_a_remaining():
 
     LAB_SETUPS["a-15"] = textwrap.dedent(
         """
-        kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n project-tiger delete networkpolicy --all --ignore-not-found
-        kubectl -n project-tiger apply -f - <<'YAML'
-        apiVersion: apps/v1
-        kind: Deployment
+        kubectl create namespace project-snake --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-snake delete networkpolicy np-backend --ignore-not-found
+        kubectl -n project-snake delete pod backend-0 db1-0 db2-0 vault-0 --ignore-not-found --wait=false
+        kubectl -n project-snake apply -f - <<'YAML'
+        apiVersion: v1
+        kind: Pod
         metadata:
-          name: web
-          namespace: project-tiger
+          name: backend-0
+          namespace: project-snake
+          labels:
+            app: backend
         spec:
-          replicas: 2
-          selector:
-            matchLabels:
-              app: web
-          template:
-            metadata:
-              labels:
-                app: web
-            spec:
-              containers:
-              - name: nginx
-                image: nginx:1-alpine
+          containers:
+          - name: nginx
+            image: nginx:1-alpine
         ---
-        apiVersion: apps/v1
-        kind: Deployment
+        apiVersion: v1
+        kind: Pod
         metadata:
-          name: api
-          namespace: project-tiger
+          name: db1-0
+          namespace: project-snake
+          labels:
+            app: db1
         spec:
-          replicas: 2
-          selector:
-            matchLabels:
-              app: api
-          template:
-            metadata:
-              labels:
-                app: api
-            spec:
-              containers:
-              - name: api
-                image: nginx:1-alpine
+          containers:
+          - name: svc
+            image: busybox:1.36
+            command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\\r\\n\\r\\ndatabase one'; } | nc -l -p 1111; done"]
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: db2-0
+          namespace: project-snake
+          labels:
+            app: db2
+        spec:
+          containers:
+          - name: svc
+            image: busybox:1.36
+            command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\\r\\n\\r\\ndatabase two'; } | nc -l -p 2222; done"]
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: vault-0
+          namespace: project-snake
+          labels:
+            app: vault
+        spec:
+          containers:
+          - name: svc
+            image: busybox:1.36
+            command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\\r\\n\\r\\nvault secret storage'; } | nc -l -p 3333; done"]
         YAML
+        kubectl -n project-snake wait --for=condition=ready pod --all --timeout=120s || true
+        echo "Ready: namespace project-snake with backend/db/vault pods (create NetworkPolicy np-backend)"
         """
     )
     CHECKS["a-15"] = (
         textwrap.dedent(
             """
-        count=$(kubectl -n project-tiger get networkpolicy --no-headers 2>/dev/null | wc -l | tr -d ' ')
-        [[ "$count" -ge 1 ]] && pass_task "netpol" "NetworkPolicy created in project-tiger" || fail_task "netpol" "NetworkPolicy created in project-tiger"
+        kubectl -n project-snake get networkpolicy np-backend &>/dev/null && \
+          pass_task "netpol" "NetworkPolicy np-backend exists in project-snake" || \
+          fail_task "netpol" "NetworkPolicy np-backend exists in project-snake"
+        sel=$(kubectl -n project-snake get networkpolicy np-backend -o jsonpath='{.spec.podSelector.matchLabels.app}' 2>/dev/null)
+        [[ "$sel" == "backend" ]] && pass_task "selector" "NetworkPolicy selects app=backend pods" || \
+          fail_task "selector" "NetworkPolicy selects app=backend pods"
         """
         ),
-        1,
+        2,
     )
 
     LAB_SETUPS["a-16"] = textwrap.dedent(
@@ -835,24 +934,9 @@ def _set_a_remaining():
         """
         DIR=$(ensure_course_dir 17)
         rm -f "$DIR/pod-container.txt" "$DIR/pod-container.log"
-        kubectl create namespace project-park --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n project-park delete pod gherkin --ignore-not-found --wait=false
-        kubectl -n project-park apply -f - <<'YAML'
-        apiVersion: v1
-        kind: Pod
-        metadata:
-          name: gherkin
-          namespace: project-park
-        spec:
-          containers:
-          - name: cucumber
-            image: busybox:1.36
-            command: ["sh", "-c", "echo hello-from-cucumber; sleep 3600"]
-          - name: tomato
-            image: busybox:1.36
-            command: ["sleep", "3600"]
-        YAML
-        kubectl -n project-park wait --for=condition=ready pod/gherkin --timeout=60s || true
+        kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-tiger delete pod tigers-reunite --ignore-not-found --wait=false
+        echo "Ready: namespace project-tiger (create Pod tigers-reunite, then inspect with crictl)"
         """
     )
     CHECKS["a-17"] = (
@@ -1112,6 +1196,7 @@ def _add_set_b():
 
     LAB_SETUPS["b-06"] = textwrap.dedent(
         """
+        kubectl delete pod success --ignore-not-found --wait=false
         echo "Kubelet troubleshooting scenario on this node."
         systemctl is-active kubelet &>/dev/null && echo "kubelet is active" || echo "kubelet may need fixing"
         """
@@ -1121,9 +1206,11 @@ def _add_set_b():
             """
         systemctl is-active kubelet &>/dev/null && pass_task "kubelet" "Kubelet is running" || fail_task "kubelet" "Kubelet is running" "systemctl status kubelet"
         kubectl get nodes &>/dev/null && pass_task "cluster" "Cluster API reachable" || fail_task "cluster" "Cluster API reachable"
+        kubectl get pod success -n default &>/dev/null && pass_task "success-pod" "Pod success exists in default" || \
+          fail_task "success-pod" "Pod success exists in default" "kubectl run success --image=nginx:1-alpine"
         """
         ),
-        2,
+        3,
     )
 
     LAB_SETUPS["b-07"] = textwrap.dedent(
@@ -1160,17 +1247,107 @@ def _add_set_b():
 
     LAB_SETUPS["b-09"] = textwrap.dedent(
         """
-        echo "Manual scheduling scenario — scheduler may be stopped."
+        kubectl delete pod manual-schedule manual-schedule2 --ignore-not-found --wait=false
+        echo "Manual scheduling scenario — temporarily stop kube-scheduler if needed."
         """
     )
     CHECKS["b-09"] = (
         textwrap.dedent(
             """
-        pending=$(kubectl get pods -A --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l | tr -d ' ')
-        [[ "$pending" -ge 0 ]] && pass_task "schedule" "Manual scheduling exercise attempted" || fail_task "schedule" "Manual scheduling exercise attempted"
+        kubectl get pod manual-schedule &>/dev/null && pass_task "pod1" "Pod manual-schedule exists" || \
+          fail_task "pod1" "Pod manual-schedule exists"
+        node1=$(kubectl get pod manual-schedule -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+        [[ -n "$node1" ]] && pass_task "scheduled1" "manual-schedule assigned to a node" || \
+          fail_task "scheduled1" "manual-schedule assigned to a node"
+        kubectl get pod manual-schedule2 &>/dev/null && pass_task "pod2" "Pod manual-schedule2 exists" || \
+          fail_task "pod2" "Pod manual-schedule2 exists"
+        phase=$(kubectl get pod manual-schedule2 -o jsonpath='{.status.phase}' 2>/dev/null)
+        [[ "$phase" == "Running" ]] && pass_task "running2" "manual-schedule2 is Running" || \
+          fail_task "running2" "manual-schedule2 is Running"
         """
         ),
-        1,
+        4,
+    )
+
+    LAB_SETUPS["b-11"] = textwrap.dedent(
+        """
+        DIR=$(ensure_course_dir 11)
+        kubectl create namespace secret --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n secret delete pod secret-pod secret secret1 secret2 --ignore-not-found --wait=false
+        cat > "$DIR/secret1.yaml" <<'YAML'
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: secret1
+          namespace: secret
+        type: Opaque
+        data:
+          key1: dmFsdWUx
+        YAML
+        echo "Ready: namespace secret with secret1.yaml fixture (create secret-pod, secret2, mounts)"
+        """
+    )
+    CHECKS["b-11"] = (
+        textwrap.dedent(
+            """
+        kubectl -n secret get secret secret1 &>/dev/null && pass_task "secret1" "Secret secret1 in namespace secret" || \
+          fail_task "secret1" "Secret secret1 in namespace secret"
+        kubectl -n secret get secret secret2 &>/dev/null && pass_task "secret2" "Secret secret2 in namespace secret" || \
+          fail_task "secret2" "Secret secret2 in namespace secret"
+        mount=$(kubectl -n secret get pod secret-pod -o jsonpath='{.spec.containers[0].volumeMounts[?(@.mountPath=="/tmp/secret1")].mountPath}' 2>/dev/null)
+        [[ "$mount" == "/tmp/secret1" ]] && pass_task "mount" "secret1 mounted at /tmp/secret1" || \
+          fail_task "mount" "secret1 mounted at /tmp/secret1"
+        env=$(kubectl -n secret get pod secret-pod -o jsonpath='{.spec.containers[0].envFrom}' 2>/dev/null)
+        echo "$env" | grep -q secret2 && pass_task "env" "secret2 exposed as env vars" || \
+          fail_task "env" "secret2 exposed as env vars"
+        """
+        ),
+        4,
+    )
+
+    LAB_SETUPS["b-12"] = textwrap.dedent(
+        """
+        kubectl delete pod pod1 --ignore-not-found --wait=false
+        echo "Create Pod pod1 (httpd:2-alpine) scheduled on control-plane node"
+        """
+    )
+    CHECKS["b-12"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod pod1 &>/dev/null && pass_task "pod" "Pod pod1 exists in default" || \
+          fail_task "pod" "Pod pod1 exists in default"
+        cname=$(kubectl get pod pod1 -o jsonpath='{.spec.containers[0].name}' 2>/dev/null)
+        [[ "$cname" == "pod1-container" ]] && pass_task "container" "Container named pod1-container" || \
+          fail_task "container" "Container named pod1-container"
+        node=$(kubectl get pod pod1 -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+        controlplane=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+        echo "$controlplane" | grep -q "$node" && pass_task "node" "Pod scheduled on control-plane" || \
+          fail_task "node" "Pod scheduled on control-plane"
+        """
+        ),
+        3,
+    )
+
+    LAB_SETUPS["b-13"] = textwrap.dedent(
+        """
+        kubectl delete pod multi-container-playground --ignore-not-found --wait=false
+        echo "Create Pod multi-container-playground with shared volume in default"
+        """
+    )
+    CHECKS["b-13"] = (
+        textwrap.dedent(
+            """
+        kubectl get pod multi-container-playground &>/dev/null && pass_task "pod" "Pod multi-container-playground exists" || \
+          fail_task "pod" "Pod multi-container-playground exists"
+        cnt=$(kubectl get pod multi-container-playground -o jsonpath='{.spec.containers[*].name}' 2>/dev/null | wc -w)
+        [[ "$cnt" -ge 2 ]] && pass_task "containers" "Pod has multiple containers" || \
+          fail_task "containers" "Pod has multiple containers"
+        vol=$(kubectl get pod multi-container-playground -o jsonpath='{.spec.volumes[0].name}' 2>/dev/null)
+        [[ -n "$vol" ]] && pass_task "volume" "Shared volume configured" || \
+          fail_task "volume" "Shared volume configured"
+        """
+        ),
+        3,
     )
 
     LAB_SETUPS["b-10"] = textwrap.dedent(
@@ -1201,67 +1378,6 @@ def _add_set_b():
         kubectl get storageclass &>/dev/null && pass_task "sc" "StorageClass created" || fail_task "sc" "StorageClass created"
         kubectl -n project-bern get pvc &>/dev/null && pass_task "pvc" "Job uses PVC" || fail_task "pvc" "Job uses PVC"
         kubectl -n project-bern get job backup &>/dev/null && pass_task "job" "Backup job applied" || fail_task "job" "Backup job applied"
-        """
-        ),
-        3,
-    )
-
-    LAB_SETUPS["b-11"] = textwrap.dedent(
-        """
-        DIR=$(ensure_course_dir 11)
-        cat > "$DIR/secret1.yaml" <<'YAML'
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: secret1
-        type: Opaque
-        data:
-          key1: dmFsdWUx
-        YAML
-        kubectl delete pod secret-pod --ignore-not-found
-        """
-    )
-    CHECKS["b-11"] = (
-        textwrap.dedent(
-            """
-        kubectl get secret secret1 &>/dev/null && pass_task "secret" "Secret secret1 created" || fail_task "secret" "Secret secret1 created"
-        mount=$(kubectl get pod secret-pod -o jsonpath='{.spec.containers[0].volumeMounts[?(@.mountPath=="/tmp/secret1")].mountPath}' 2>/dev/null)
-        [[ "$mount" == "/tmp/secret1" ]] && pass_task "mount" "Secret mounted at /tmp/secret1" || fail_task "mount" "Secret mounted at /tmp/secret1"
-        """
-        ),
-        2,
-    )
-
-    LAB_SETUPS["b-12"] = textwrap.dedent(
-        """
-        kubectl delete pod pod-on-controlplane --ignore-not-found
-        """
-    )
-    CHECKS["b-12"] = (
-        textwrap.dedent(
-            """
-        kubectl get pod pod-on-controlplane &>/dev/null && pass_task "pod" "Pod pod-on-controlplane exists" || fail_task "pod" "Pod pod-on-controlplane exists"
-        node=$(kubectl get pod pod-on-controlplane -o jsonpath='{.spec.nodeName}' 2>/dev/null)
-        controlplane=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
-        echo "$controlplane" | grep -q "$node" && pass_task "node" "Pod scheduled on control-plane" || fail_task "node" "Pod scheduled on control-plane"
-        """
-        ),
-        2,
-    )
-
-    LAB_SETUPS["b-13"] = textwrap.dedent(
-        """
-        kubectl delete pod multi-container-pod --ignore-not-found
-        """
-    )
-    CHECKS["b-13"] = (
-        textwrap.dedent(
-            """
-        kubectl get pod multi-container-pod &>/dev/null && pass_task "pod" "Multi-container pod exists" || fail_task "pod" "Multi-container pod exists"
-        cnt=$(kubectl get pod multi-container-pod -o jsonpath='{.spec.containers[*].name}' 2>/dev/null | wc -w)
-        [[ "$cnt" -ge 2 ]] && pass_task "containers" "Pod has multiple containers" || fail_task "containers" "Pod has multiple containers"
-        vol=$(kubectl get pod multi-container-pod -o jsonpath='{.spec.volumes[0].name}' 2>/dev/null)
-        [[ -n "$vol" ]] && pass_task "volume" "Shared volume configured" || fail_task "volume" "Shared volume configured"
         """
         ),
         3,
@@ -1306,20 +1422,28 @@ def _add_set_b():
         """
         DIR=$(ensure_course_dir 16)
         rm -f "$DIR/resources.txt" "$DIR/crowded-namespace.txt"
-        for i in 1 2 3 4 5; do
-          kubectl create namespace "project-$i" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n "project-$i" delete role --all --ignore-not-found 2>/dev/null || true
+        for city in jinan miami melbourne seoul toronto; do
+          kubectl create namespace "project-$city" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "project-$city" delete role --all --ignore-not-found 2>/dev/null || true
         done
-        for r in $(seq 1 3); do kubectl -n project-1 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
-        for r in $(seq 1 5); do kubectl -n project-2 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
-        for r in $(seq 1 2); do kubectl -n project-3 create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        for r in $(seq 1 300); do
+          kubectl -n project-miami create role "role-$r" --verb=get --resource=pods 2>/dev/null || true
+        done
+        for r in $(seq 1 2); do kubectl -n project-melbourne create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        for r in $(seq 1 10); do kubectl -n project-seoul create role "role-$r" --verb=get --resource=pods 2>/dev/null || true; done
+        echo "Ready: project-* namespaces with project-miami having most Roles"
         """
     )
     CHECKS["b-16"] = (
         textwrap.dedent(
             """
         [[ -f "$(course_path 16)/resources.txt" ]] && pass_task "resources" "Namespaced API resources listed" || fail_task "resources" "Namespaced API resources listed"
-        [[ -f "$(course_path 16)/crowded-namespace.txt" ]] && pass_task "crowded" "Crowded namespace identified" || fail_task "crowded" "Crowded namespace identified"
+        crowded="$(course_path 16)/crowded-namespace.txt"
+        if [[ -f "$crowded" ]] && grep -qi 'project-miami' "$crowded" && grep -q '300' "$crowded"; then
+          pass_task "crowded" "project-miami with 300 roles identified"
+        else
+          fail_task "crowded" "project-miami with 300 roles identified" "Expected: project-miami with 300 roles"
+        fi
         """
         ),
         2,
@@ -1349,7 +1473,8 @@ def _add_set_b():
         textwrap.dedent(
             """
         kubectl -n operator-prod get deploy &>/dev/null && pass_task "operator" "Operator deployed in operator-prod" || fail_task "operator" "Operator deployed in operator-prod"
-        kubectl get crd students.example.com &>/dev/null 2>&1 || kubectl -n operator-prod get pods &>/dev/null && pass_task "crd" "CRDs/operator resources present" || fail_task "crd" "CRDs/operator resources present"
+        kubectl get crd students.education.killer.sh &>/dev/null 2>&1 && pass_task "crd" "Student CRD present" || \
+          fail_task "crd" "Student CRD present" "kubectl get crd students.education.killer.sh"
         """
         ),
         2,
@@ -1402,8 +1527,8 @@ CLEANUP: dict[str, str] = {}
 
 def _add_cleanups():
     for prefix, namespaces, extras in [
-        ("a", ["minio", "project-h800", "project-c13", "api-gateway-staging", "api-gateway-prod", "project-t230", "project-swan", "project-hamster", "project-r500", "project-tiger", "project-park"], "cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true"),
-        ("b", ["lima-control", "lima-workload", "project-bern", "operator-prod", "project-1", "project-2", "project-3", "project-4", "project-5"], "kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found"),
+        ("a", ["minio", "project-h800", "project-c13", "api-gateway-staging", "api-gateway-prod", "project-t230", "project-swan", "project-hamster", "project-r500", "project-tiger", "project-snake"], "cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important deployment deploy-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true"),
+        ("b", ["lima-control", "lima-workload", "project-bern", "operator-prod", "secret", "project-jinan", "project-miami", "project-melbourne", "project-seoul", "project-toronto"], "kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false"),
     ]:
         for i in range(1, 18):
             key = f"{prefix}-{i:02d}"

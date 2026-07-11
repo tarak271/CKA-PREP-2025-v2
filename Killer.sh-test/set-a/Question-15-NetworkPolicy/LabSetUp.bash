@@ -4,45 +4,61 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../lib/course.sh"
 
 
-kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n project-tiger delete networkpolicy --all --ignore-not-found
-kubectl -n project-tiger apply -f - <<'YAML'
-apiVersion: apps/v1
-kind: Deployment
+kubectl create namespace project-snake --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n project-snake delete networkpolicy np-backend --ignore-not-found
+kubectl -n project-snake delete pod backend-0 db1-0 db2-0 vault-0 --ignore-not-found --wait=false
+kubectl -n project-snake apply -f - <<'YAML'
+apiVersion: v1
+kind: Pod
 metadata:
-  name: web
-  namespace: project-tiger
+  name: backend-0
+  namespace: project-snake
+  labels:
+    app: backend
 spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: web
-  template:
-    metadata:
-      labels:
-        app: web
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1-alpine
+  containers:
+  - name: nginx
+    image: nginx:1-alpine
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Pod
 metadata:
-  name: api
-  namespace: project-tiger
+  name: db1-0
+  namespace: project-snake
+  labels:
+    app: db1
 spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: api
-  template:
-    metadata:
-      labels:
-        app: api
-    spec:
-      containers:
-      - name: api
-        image: nginx:1-alpine
+  containers:
+  - name: svc
+    image: busybox:1.36
+    command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\r\n\r\ndatabase one'; } | nc -l -p 1111; done"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db2-0
+  namespace: project-snake
+  labels:
+    app: db2
+spec:
+  containers:
+  - name: svc
+    image: busybox:1.36
+    command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\r\n\r\ndatabase two'; } | nc -l -p 2222; done"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault-0
+  namespace: project-snake
+  labels:
+    app: vault
+spec:
+  containers:
+  - name: svc
+    image: busybox:1.36
+    command: ["sh", "-c", "while true; do { echo -e 'HTTP/1.0 200 OK\r\n\r\nvault secret storage'; } | nc -l -p 3333; done"]
 YAML
+kubectl -n project-snake wait --for=condition=ready pod --all --timeout=120s || true
+echo "Ready: namespace project-snake with backend/db/vault pods (create NetworkPolicy np-backend)"
 

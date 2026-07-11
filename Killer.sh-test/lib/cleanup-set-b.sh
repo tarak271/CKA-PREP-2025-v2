@@ -7,240 +7,257 @@ _KILLER_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_KILLER_LIB/course.sh"
 
 cleanup_b01() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/1" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/1" 2>/dev/null || true
 }
 
 cleanup_b02() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/2" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/2" 2>/dev/null || true
 }
 
 cleanup_b03() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/3" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/3" 2>/dev/null || true
 }
 
 cleanup_b04() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/4" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/4" 2>/dev/null || true
 }
 
 cleanup_b05() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/5" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/5" 2>/dev/null || true
 }
 
 cleanup_b06() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/6" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/6" 2>/dev/null || true
 }
 
 cleanup_b07() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/7" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/7" 2>/dev/null || true
 }
 
 cleanup_b08() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/8" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/8" 2>/dev/null || true
 }
 
 cleanup_b09() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/9" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/9" 2>/dev/null || true
 }
 
 cleanup_b10() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/10" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/10" 2>/dev/null || true
 }
 
 cleanup_b11() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/11" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/11" 2>/dev/null || true
 }
 
 cleanup_b12() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/12" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/12" 2>/dev/null || true
 }
 
 cleanup_b13() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/13" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/13" 2>/dev/null || true
 }
 
 cleanup_b14() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/14" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/14" 2>/dev/null || true
 }
 
 cleanup_b15() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/15" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/15" 2>/dev/null || true
 }
 
 cleanup_b16() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/16" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/16" 2>/dev/null || true
 }
 
 cleanup_b17() {
-kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
+kubectl delete pod ready-if-service-ready am-i-ready success manual-schedule manual-schedule2 pod1 multi-container-playground --ignore-not-found --wait=false; kubectl delete svc static-pod-service service-am-i-ready --ignore-not-found --wait=false
                   kubectl delete namespace lima-control --ignore-not-found --wait=false
 kubectl delete namespace lima-workload --ignore-not-found --wait=false
 kubectl delete namespace project-bern --ignore-not-found --wait=false
 kubectl delete namespace operator-prod --ignore-not-found --wait=false
-kubectl delete namespace project-1 --ignore-not-found --wait=false
-kubectl delete namespace project-2 --ignore-not-found --wait=false
-kubectl delete namespace project-3 --ignore-not-found --wait=false
-kubectl delete namespace project-4 --ignore-not-found --wait=false
-kubectl delete namespace project-5 --ignore-not-found --wait=false
+kubectl delete namespace secret --ignore-not-found --wait=false
+kubectl delete namespace project-jinan --ignore-not-found --wait=false
+kubectl delete namespace project-miami --ignore-not-found --wait=false
+kubectl delete namespace project-melbourne --ignore-not-found --wait=false
+kubectl delete namespace project-seoul --ignore-not-found --wait=false
+kubectl delete namespace project-toronto --ignore-not-found --wait=false
                 rm -rf "${KILLER_COURSE_DIR}/17" 2>/dev/null || sudo rm -rf "${KILLER_COURSE_DIR}/17" 2>/dev/null || true
 }
 

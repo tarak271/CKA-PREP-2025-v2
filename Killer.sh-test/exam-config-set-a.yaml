@@ -1,4 +1,4 @@
-# Killer.sh Set-A — 17 questions, 46 marks
+# Killer.sh Set-A — 17 questions, 51 marks
 questions:
   - id: a01
     marks: 3
@@ -34,16 +34,16 @@ questions:
     marks: 5
     dir: Question-11-DaemonSet-on-all-Nodes
   - id: a12
-    marks: 1
+    marks: 4
     dir: Question-12-Deployment-on-all-Nodes
   - id: a13
-    marks: 2
+    marks: 3
     dir: Question-13-Gateway-Api-Ingress
   - id: a14
     marks: 2
     dir: Question-14-Check-how-long-certificates-are-valid
   - id: a15
-    marks: 1
+    marks: 2
     dir: Question-15-NetworkPolicy
   - id: a16
     marks: 2
