@@ -448,8 +448,7 @@ def _set_a_remaining():
     LAB_SETUPS["a-06"] = textwrap.dedent(
         """
         kubectl create namespace project-t230 --dry-run=client -o yaml | kubectl apply -f -
-        kubectl delete pv safari-pv --ignore-not-found
-        kubectl -n project-t230 delete deploy safari pvc safari-pvc --ignore-not-found --wait=false
+        cleanup_safari_storage
         """
     )
     CHECKS["a-06"] = (
@@ -470,26 +469,34 @@ def _set_a_remaining():
         """
         DIR=$(ensure_course_dir 7)
         rm -f "$DIR/node.sh" "$DIR/pod.sh"
+        ensure_metrics_server
         echo "Create scripts node.sh and pod.sh in $DIR"
+        echo "  node.sh: kubectl top node"
+        echo "  pod.sh:  kubectl top pod --containers=true"
         """
     )
     CHECKS["a-07"] = (
         textwrap.dedent(
             """
+        if ! kubectl top nodes &>/dev/null 2>&1; then
+          fail_task "metrics" "metrics-server available" "Run: ensure_metrics_server (re-run lab setup) or install metrics-server"
+        else
+          pass_task "metrics" "metrics-server available"
+        fi
         DIR=$(course_path 7)
         if [[ -x "$DIR/node.sh" ]] && "$DIR/node.sh" 2>/dev/null | grep -qiE 'cpu|memory|name'; then
           pass_task "node-sh" "node.sh shows node resource usage"
         else
-          fail_task "node-sh" "node.sh shows node resource usage"
+          fail_task "node-sh" "node.sh shows node resource usage" "echo 'kubectl top node' > $DIR/node.sh && chmod +x $DIR/node.sh"
         fi
         if [[ -x "$DIR/pod.sh" ]] && "$DIR/pod.sh" 2>/dev/null | grep -qiE 'cpu|memory|pod'; then
           pass_task "pod-sh" "pod.sh shows pod resource usage"
         else
-          fail_task "pod-sh" "pod.sh shows pod resource usage"
+          fail_task "pod-sh" "pod.sh shows pod resource usage" "echo 'kubectl top pod --containers=true' > $DIR/pod.sh && chmod +x $DIR/pod.sh"
         fi
         """
         ),
-        2,
+        3,
     )
 
     LAB_SETUPS["a-08"] = textwrap.dedent(
@@ -514,67 +521,145 @@ def _set_a_remaining():
         DIR=$(ensure_course_dir 9)
         rm -f "$DIR/result.json"
         kubectl create namespace project-swan --dry-run=client -o yaml | kubectl apply -f -
+
+        # Reset Q9 resources (student creates api-contact pod)
         kubectl -n project-swan delete pod api-contact --ignore-not-found --wait=false
-        kubectl -n project-swan apply -f - <<'YAML'
-        apiVersion: v1
-        kind: Pod
+        kubectl -n project-swan delete secret read-me --ignore-not-found
+        kubectl -n project-swan delete rolebinding secret-reader --ignore-not-found
+        kubectl -n project-swan delete role secret-reader --ignore-not-found
+        kubectl -n project-swan delete serviceaccount secret-reader --ignore-not-found
+        kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found
+        kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found
+
+        # ServiceAccount + RBAC (can list secrets via Kubernetes API)
+        kubectl -n project-swan create serviceaccount secret-reader
+        kubectl apply -f - <<'YAML'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
         metadata:
-          name: api-contact
+          name: killer-a09-secret-reader
+        rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs: ["get", "list"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: killer-a09-secret-reader
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: killer-a09-secret-reader
+        subjects:
+        - kind: ServiceAccount
+          name: secret-reader
           namespace: project-swan
-        spec:
-          containers:
-          - name: curl
-            image: curlimages/curl:latest
-            command: ["sleep", "3600"]
         YAML
-        kubectl -n project-swan wait --for=condition=ready pod/api-contact --timeout=60s || true
+
+        # Sample secret for the API response
+        kubectl -n project-swan create secret generic read-me --from-literal=token=exam-token
+
+        echo "Ready: namespace project-swan with ServiceAccount secret-reader"
+        echo "Create Pod api-contact (nginx:1-alpine) using serviceAccountName: secret-reader"
         """
     )
     CHECKS["a-09"] = (
         textwrap.dedent(
             """
+        kubectl -n project-swan get serviceaccount secret-reader &>/dev/null && \
+          pass_task "sa" "ServiceAccount secret-reader exists" || \
+          fail_task "sa" "ServiceAccount secret-reader exists"
+        sa=$(kubectl -n project-swan get pod api-contact -o jsonpath='{.spec.serviceAccountName}' 2>/dev/null || echo "")
+        [[ "$sa" == "secret-reader" ]] && pass_task "pod-sa" "Pod api-contact uses secret-reader" || \
+          fail_task "pod-sa" "Pod api-contact uses secret-reader" "Set serviceAccountName: secret-reader on pod api-contact"
         FILE="$(course_path 9)/result.json"
-        if [[ -f "$FILE" ]] && python3 -c "import json; json.load(open('$FILE'))" 2>/dev/null; then
-          pass_task "json" "result.json contains valid JSON from API call"
+        if [[ -f "$FILE" ]] && python3 -c "
+        import json, sys
+        d=json.load(open('$FILE'))
+        assert d.get('kind')=='SecretList', 'expected SecretList'
+        assert 'items' in d, 'missing items'
+        " 2>/dev/null; then
+          pass_task "json" "result.json contains SecretList from API call"
         else
-          fail_task "json" "result.json contains valid JSON from API call"
+          fail_task "json" "result.json contains SecretList from API call" \
+            "curl -k https://kubernetes.default/api/v1/secrets -H \"Authorization: Bearer \\$TOKEN\" and save to $FILE"
         fi
         """
         ),
-        1,
+        3,
     )
 
     LAB_SETUPS["a-10"] = textwrap.dedent(
         """
-        kubectl create namespace project-hibiscus --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n project-hwan delete sa,role,rolebinding --all --ignore-not-found 2>/dev/null || true
-        kubectl -n project-hibiscus delete sa,role,rolebinding --all --ignore-not-found 2>/dev/null || true
+        kubectl create namespace project-hamster --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-hamster delete sa processor role processor rolebinding processor \
+          --ignore-not-found 2>/dev/null || true
+        echo "Ready: namespace project-hamster (create SA/Role/RoleBinding named processor)"
         """
     )
     CHECKS["a-10"] = (
         textwrap.dedent(
             """
-        kubectl -n project-hibiscus get rolebinding &>/dev/null && pass_task "rbac" "RBAC resources created in project-hibiscus" || fail_task "rbac" "RBAC resources created in project-hibiscus"
+        kubectl -n project-hamster get serviceaccount processor &>/dev/null && \
+          pass_task "sa" "ServiceAccount processor exists" || \
+          fail_task "sa" "ServiceAccount processor exists"
+        kubectl -n project-hamster get role processor &>/dev/null && \
+          pass_task "role" "Role processor exists" || \
+          fail_task "role" "Role processor exists"
+        kubectl -n project-hamster get rolebinding processor &>/dev/null && \
+          pass_task "binding" "RoleBinding processor exists" || \
+          fail_task "binding" "RoleBinding processor exists"
+        kubectl -n project-hamster auth can-i create secret \
+          --as system:serviceaccount:project-hamster:processor 2>/dev/null | grep -q yes && \
+          pass_task "create-secret" "Can create secrets" || \
+          fail_task "create-secret" "Can create secrets"
+        kubectl -n project-hamster auth can-i create configmap \
+          --as system:serviceaccount:project-hamster:processor 2>/dev/null | grep -q yes && \
+          pass_task "create-cm" "Can create configmaps" || \
+          fail_task "create-cm" "Can create configmaps"
+        kubectl -n project-hamster auth can-i create pod \
+          --as system:serviceaccount:project-hamster:processor 2>/dev/null | grep -q no && \
+          pass_task "no-pod" "Cannot create pods" || \
+          fail_task "no-pod" "Cannot create pods"
         """
         ),
-        1,
+        6,
     )
 
     LAB_SETUPS["a-11"] = textwrap.dedent(
         """
-        kubectl delete daemonset ds-overlord --ignore-not-found --wait=false
+        DIR=$(ensure_course_dir 11)
+        kubectl create namespace project-tiger --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false
+        echo "Ready: namespace project-tiger (create DaemonSet ds-important)"
         """
     )
     CHECKS["a-11"] = (
         textwrap.dedent(
             """
-        kubectl get ds ds-overlord &>/dev/null && pass_task "ds" "DaemonSet ds-overlord exists" || fail_task "ds" "DaemonSet ds-overlord exists"
+        kubectl -n project-tiger get daemonset ds-important &>/dev/null && \
+          pass_task "ds" "DaemonSet ds-important exists in project-tiger" || \
+          fail_task "ds" "DaemonSet ds-important exists in project-tiger"
+        img=$(kubectl -n project-tiger get ds ds-important -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+        [[ "$img" == "httpd:2-alpine" ]] && pass_task "image" "Uses image httpd:2-alpine" || \
+          fail_task "image" "Uses image httpd:2-alpine" "Current image: $img"
+        cpu=$(kubectl -n project-tiger get ds ds-important -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}' 2>/dev/null)
+        mem=$(kubectl -n project-tiger get ds ds-important -o jsonpath='{.spec.template.spec.containers[0].resources.requests.memory}' 2>/dev/null)
+        [[ "$cpu" == "10m" && "$mem" == "10Mi" ]] && pass_task "resources" "Pods request 10m CPU and 10Mi memory" || \
+          fail_task "resources" "Pods request 10m CPU and 10Mi memory"
+        tol=$(kubectl -n project-tiger get ds ds-important -o jsonpath='{.spec.template.spec.tolerations[*].key}' 2>/dev/null)
+        echo "$tol" | grep -qE 'node-role.kubernetes.io/(control-plane|master)' && \
+          pass_task "toleration" "Tolerates control-plane taint" || \
+          fail_task "toleration" "Tolerates control-plane taint" \
+            "Add toleration for node-role.kubernetes.io/control-plane:NoSchedule"
         nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
-        ready=$(kubectl get ds ds-overlord -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
-        [[ "$ready" -ge 1 ]] && pass_task "scheduled" "DaemonSet scheduled on nodes" || fail_task "scheduled" "DaemonSet scheduled on nodes"
+        ready=$(kubectl -n project-tiger get ds ds-important -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+        [[ "$nodes" -gt 0 && "$ready" -eq "$nodes" ]] && pass_task "all-nodes" "DaemonSet pod on every node ($ready/$nodes)" || \
+          fail_task "all-nodes" "DaemonSet pod on every node ($ready/$nodes)"
         """
         ),
-        2,
+        5,
     )
 
     LAB_SETUPS["a-12"] = textwrap.dedent(
@@ -1277,6 +1362,9 @@ def generate_cleanup_sh(set_id: str, qids: list[tuple[str, int, str]]) -> str:
         f"# Cleanup for Killer.sh Set-{set_id.upper()}",
         "",
         'KILLER_COURSE_DIR="${KILLER_COURSE_DIR:-/opt/course}"',
+        '_KILLER_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        '# shellcheck source=/dev/null',
+        'source "$_KILLER_LIB/course.sh"',
         "",
     ]
     for qid, _, slug in qids:
@@ -1314,7 +1402,7 @@ CLEANUP: dict[str, str] = {}
 
 def _add_cleanups():
     for prefix, namespaces, extras in [
-        ("a", ["minio", "project-h800", "project-c13", "api-gateway-staging", "api-gateway-prod", "project-t230", "project-swan", "project-hibiscus", "project-r500", "project-tiger", "project-park"], "kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true"),
+        ("a", ["minio", "project-h800", "project-c13", "api-gateway-staging", "api-gateway-prod", "project-t230", "project-swan", "project-hamster", "project-r500", "project-tiger", "project-park"], "cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true"),
         ("b", ["lima-control", "lima-workload", "project-bern", "operator-prod", "project-1", "project-2", "project-3", "project-4", "project-5"], "kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found"),
     ]:
         for i in range(1, 18):

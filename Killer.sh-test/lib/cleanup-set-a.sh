@@ -2,9 +2,12 @@
 # Cleanup for Killer.sh Set-A
 
 KILLER_COURSE_DIR="${KILLER_COURSE_DIR:-/opt/course}"
+_KILLER_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$_KILLER_LIB/course.sh"
 
 cleanup_a01() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -12,7 +15,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -20,7 +23,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a02() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -28,7 +31,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -36,7 +39,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a03() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -44,7 +47,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -52,7 +55,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a04() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -60,7 +63,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -68,7 +71,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a05() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -76,7 +79,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -84,7 +87,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a06() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -92,7 +95,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -100,7 +103,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a07() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -108,7 +111,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -116,7 +119,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a08() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -124,7 +127,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -132,7 +135,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a09() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -140,7 +143,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -148,7 +151,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a10() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -156,7 +159,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -164,7 +167,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a11() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -172,7 +175,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -180,7 +183,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a12() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -188,7 +191,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -196,7 +199,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a13() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -204,7 +207,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -212,7 +215,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a14() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -220,7 +223,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -228,7 +231,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a15() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -236,7 +239,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -244,7 +247,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a16() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -252,7 +255,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false
@@ -260,7 +263,7 @@ kubectl delete namespace project-park --ignore-not-found --wait=false
 }
 
 cleanup_a17() {
-kubectl delete pv safari-pv --ignore-not-found; kubectl delete ds ds-overlord --ignore-not-found; helm uninstall minio-operator -n minio &>/dev/null || true
+cleanup_safari_storage; kubectl delete clusterrolebinding killer-a09-secret-reader --ignore-not-found --wait=false; kubectl delete clusterrole killer-a09-secret-reader --ignore-not-found --wait=false; kubectl -n project-tiger delete daemonset ds-important --ignore-not-found --wait=false; helm uninstall minio-operator -n minio &>/dev/null || true
                   kubectl delete namespace minio --ignore-not-found --wait=false
 kubectl delete namespace project-h800 --ignore-not-found --wait=false
 kubectl delete namespace project-c13 --ignore-not-found --wait=false
@@ -268,7 +271,7 @@ kubectl delete namespace api-gateway-staging --ignore-not-found --wait=false
 kubectl delete namespace api-gateway-prod --ignore-not-found --wait=false
 kubectl delete namespace project-t230 --ignore-not-found --wait=false
 kubectl delete namespace project-swan --ignore-not-found --wait=false
-kubectl delete namespace project-hibiscus --ignore-not-found --wait=false
+kubectl delete namespace project-hamster --ignore-not-found --wait=false
 kubectl delete namespace project-r500 --ignore-not-found --wait=false
 kubectl delete namespace project-tiger --ignore-not-found --wait=false
 kubectl delete namespace project-park --ignore-not-found --wait=false

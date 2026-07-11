@@ -2,6 +2,9 @@
 # Cleanup for Killer.sh Set-B
 
 KILLER_COURSE_DIR="${KILLER_COURSE_DIR:-/opt/course}"
+_KILLER_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$_KILLER_LIB/course.sh"
 
 cleanup_b01() {
 kubectl delete pod ready-if-service-ready am-i-ready secret-pod pod-on-controlplane multi-container-pod --ignore-not-found; kubectl delete svc static-pod-service service-am-i-ready secret1 --ignore-not-found
